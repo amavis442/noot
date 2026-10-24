@@ -15,7 +15,7 @@ import (
 	_ "github.com/ncruces/go-sqlite3/embed"
 )
 
-const schemaVersion = 1
+const schemaVersion = 2 // 2: link context keeps inline code
 
 const schema = `
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);

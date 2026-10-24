@@ -141,7 +141,8 @@ type walker struct {
 	tags  []string
 	links []domain.Link
 
-	buf     strings.Builder // text of the current inline-bearing block
+	buf     strings.Builder // text of the current block, without code: used to find links and tags
+	show    strings.Builder // same block including `code` and autolinks: used for titles and context
 	inBlock int
 	pending []domain.Link // md links found in the current block (context filled on flush)
 }
@@ -161,11 +162,12 @@ func (w *walker) walk(doc ast.Node) error {
 				w.inBlock++
 				if w.inBlock == 1 {
 					w.buf.Reset()
+					w.show.Reset()
 				}
 			} else {
 				w.inBlock--
 				if h, ok := n.(*ast.Heading); ok && h.Level == 1 && w.h1 == "" {
-					w.h1 = strings.TrimSpace(w.buf.String())
+					w.h1 = strings.TrimSpace(w.show.String())
 				}
 				if w.inBlock == 0 {
 					w.flush()
@@ -177,7 +179,19 @@ func (w *walker) walk(doc ast.Node) error {
 			return ast.WalkContinue, nil
 		}
 		switch t := n.(type) {
-		case *ast.CodeSpan, *ast.RawHTML, *ast.AutoLink:
+		case *ast.CodeSpan:
+			w.show.WriteByte('`')
+			for c := t.FirstChild(); c != nil; c = c.NextSibling() {
+				if tx, ok := c.(*ast.Text); ok {
+					w.show.Write(tx.Segment.Value(w.src))
+				}
+			}
+			w.show.WriteByte('`')
+			return ast.WalkSkipChildren, nil
+		case *ast.AutoLink:
+			w.show.Write(t.URL(w.src))
+			return ast.WalkSkipChildren, nil
+		case *ast.RawHTML:
 			return ast.WalkSkipChildren, nil
 		case *ast.Link:
 			if target, ok := w.mdTarget(string(t.Destination)); ok {
@@ -185,11 +199,14 @@ func (w *walker) walk(doc ast.Node) error {
 			}
 		case *ast.Text:
 			w.buf.Write(t.Segment.Value(w.src))
+			w.show.Write(t.Segment.Value(w.src))
 			if t.SoftLineBreak() || t.HardLineBreak() {
 				w.buf.WriteByte(' ')
+				w.show.WriteByte(' ')
 			}
 		case *ast.String:
 			w.buf.Write(t.Value)
+			w.show.Write(t.Value)
 		}
 		return ast.WalkContinue, nil
 	})
@@ -198,7 +215,7 @@ func (w *walker) walk(doc ast.Node) error {
 // flush extracts wikilinks and tags from the finished block.
 func (w *walker) flush() {
 	block := w.buf.String()
-	ctx := context(block)
+	ctx := context(w.show.String())
 	for _, l := range w.pending {
 		l.Context = ctx
 		w.links = append(w.links, l)

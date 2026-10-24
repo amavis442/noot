@@ -2,6 +2,7 @@ package parser
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/amavis442/noot/internal/domain"
@@ -39,6 +40,9 @@ func TestParse(t *testing.T) {
 	}
 	if n.Links[1].Context == "" {
 		t.Error("expected link context")
+	}
+	if ctx := n.Links[2].Context; !strings.Contains(ctx, "`[[in-span]]`") {
+		t.Errorf("context should keep inline code, got %q", ctx)
 	}
 }
 
