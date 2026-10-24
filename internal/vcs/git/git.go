@@ -118,9 +118,15 @@ func (r *Repo) HasRemote(ctx context.Context, name string) (bool, error) {
 }
 
 // PullRebase fetches and rebases local commits on top of the upstream.
+// Uncommitted changes are stashed and restored around it.
 func (r *Repo) PullRebase(ctx context.Context) error {
-	_, err := r.run(ctx, "pull", "--rebase", "-q")
+	_, err := r.run(ctx, "pull", "--rebase", "--autostash", "-q")
 	return err
+}
+
+// Head returns the full hash of HEAD.
+func (r *Repo) Head(ctx context.Context) (string, error) {
+	return r.run(ctx, "rev-parse", "HEAD")
 }
 
 // Ahead returns the number of local commits not on the upstream.

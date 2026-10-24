@@ -270,3 +270,41 @@ func TestUpstreamOnDetachedHeadAndUntrackedBranch(t *testing.T) {
 		t.Errorf("detached HEAD: up=%v err=%v", up, err)
 	}
 }
+
+func TestHeadAndPullWithLocalChanges(t *testing.T) {
+	ctx := context.Background()
+	work, bare := repoWithRemote(t)
+	g := New(work)
+	write(t, work, "a.md", "# A")
+	_ = g.AddAll(ctx)
+	if _, err := g.Commit(ctx, "first", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.PushSetUpstream(ctx, "origin"); err != nil {
+		t.Fatal(err)
+	}
+	before, err := g.Head(ctx)
+	if err != nil || len(before) != 40 {
+		t.Fatalf("head = %q, %v", before, err)
+	}
+
+	other := filepath.Join(filepath.Dir(bare), "other")
+	run(t, filepath.Dir(bare), "clone", "-q", bare, other)
+	write(t, other, "b.md", "# B")
+	run(t, other, "add", "-A")
+	run(t, other, "commit", "-q", "-m", "other")
+	run(t, other, "push", "-q")
+
+	// Uncommitted local edit: pull must still work and keep it (autostash).
+	write(t, work, "a.md", "# A, edited but not committed")
+	if err := g.PullRebase(ctx); err != nil {
+		t.Fatalf("pull with local changes: %v", err)
+	}
+	after, _ := g.Head(ctx)
+	if after == before {
+		t.Error("HEAD should move after pulling a new commit")
+	}
+	if b, _ := os.ReadFile(filepath.Join(work, "a.md")); string(b) != "# A, edited but not committed" {
+		t.Errorf("local edit lost: %q", b)
+	}
+}

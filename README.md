@@ -97,6 +97,7 @@ Elk leescommando werkt de index eerst incrementeel bij (op basis van mtime en gr
 | `open <note> [--print]` | Notitie openen via id, pad, bestandsnaam, titel of alias |
 | `watch` | Index live bijhouden (Ctrl+C om te stoppen) |
 | `push [-m melding] [--no-pull]` | Alles committen en pushen: `git add -A`, commit, `pull --rebase`, `push` |
+| `pull` | Wijzigingen van elders binnenhalen (`pull --rebase --autostash`) en de index bijwerken |
 
 Overal kun je `--json` toevoegen voor scripts, fzf of een AI-agent. Bijvoorbeeld:
 
@@ -114,10 +115,13 @@ Een vault is gewoon een git-repo. `noot push` doet de hele ronde in één keer:
 noot push                     # commit "noot: 3f9a1c2e4b7d" + lijst met gewijzigde bestanden, pull --rebase, push
 noot push -m "Weekly review"  # eigen melding
 noot -A push                  # de agent-vault
+noot pull                     # binnenhalen wat elders is gepusht
 ```
 
 - De standaardmelding is `noot: <hash>`: de eerste 12 tekens van de hash van de inhoud van de vault (`git write-tree`). Identieke inhoud geeft dus dezelfde hash. In de body staan de gewijzigde bestanden.
-- Eerst `git pull --rebase`, zodat een push vanaf een andere machine (of van je agent) wordt meegenomen in plaats van geweigerd. Daarna werkt noot de index bij.
+- Is er iets te pushen, dan eerst `git pull --rebase`, zodat een push vanaf een andere machine (of van je agent) wordt meegenomen in plaats van geweigerd. Daarna werkt noot de index bij.
+- Is er niets te pushen, dan zegt noot meteen `nothing to push`, zonder contact met de remote. Dat scheelt de netwerktijd (bij GitHub al gauw 1 tot 2 seconden).
+- Wijzigingen van elders binnenhalen doe je met `noot pull`. Lokale, nog niet gecommitte wijzigingen blijven daarbij staan.
 - Heeft de branch nog geen upstream maar wel een `origin`, dan doet noot `git push -u origin HEAD`. Zonder remote wordt er alleen lokaal gecommit.
 - `.noot/` (de index) komt nooit in git; noot zet het zo nodig in `.gitignore`.
 - noot gebruikt `git` uit je PATH, dus je eigen config, credentials en SSH-sleutels.

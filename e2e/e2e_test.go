@@ -494,8 +494,17 @@ func TestPush(t *testing.T) {
 	body := e.git(bare, "log", "-1", "--format=%b", "main")
 	contains(t, "body lists changes", body, "A\tzettels/a.md")
 
-	// Nothing changed: nothing to do.
-	contains(t, "no changes", e.ok("-V", "v", "push"), "nothing to push")
+	// Nothing changed: nothing to do, and no network: it must work even
+	// when the remote is unreachable.
+	if err := os.Rename(bare, bare+".offline"); err != nil {
+		t.Fatal(err)
+	}
+	out = e.ok("-V", "v", "push")
+	contains(t, "no changes", out, "nothing to push")
+	lacks(t, "no changes", out, "pulled")
+	if err := os.Rename(bare+".offline", bare); err != nil {
+		t.Fatal(err)
+	}
 
 	// Custom message, and the agent vault selection works too.
 	e.write("v/zettels/a.md", "# A changed")
@@ -543,5 +552,35 @@ func TestPushWithoutRemoteOrRepo(t *testing.T) {
 	contains(t, "local only", out, "committed", "no remote configured")
 	if log := e.git(e.path("v"), "log", "--oneline"); !strings.Contains(log, "noot: ") {
 		t.Errorf("expected a local commit, log = %q", log)
+	}
+}
+
+func TestPull(t *testing.T) {
+	e := newEnv(t)
+	e.ok("init", e.path("v"), "--name", "v")
+	bare := e.gitRepo(e.path("v"))
+	e.write("v/a.md", "# A")
+	e.ok("-V", "v", "push")
+
+	contains(t, "up to date", e.ok("-V", "v", "pull"), "already up to date")
+
+	other := e.path("other")
+	e.git(e.root, "clone", "-q", bare, other)
+	e.write("other/zettels/remote.md", "# Remote\nkeyword-heron")
+	e.git(other, "add", "-A")
+	e.git(other, "commit", "-q", "-m", "other machine")
+	e.git(other, "push", "-q")
+
+	e.write("v/a.md", "# A, local edit")
+	contains(t, "pull", e.ok("-V", "v", "pull"), "pulled", "index updated")
+	contains(t, "pulled note indexed", e.ok("-V", "v", "--no-sync", "search", "keyword-heron"), "zettels/remote.md")
+	if got := e.read("v/a.md"); got != "# A, local edit" {
+		t.Errorf("local edit lost: %q", got)
+	}
+
+	e2 := newEnv(t)
+	e2.ok("init", e2.path("plain"), "--name", "plain")
+	if r := e2.run("-V", "plain", "pull"); r.code == 0 || !strings.Contains(r.stderr, "not a git repository") {
+		t.Errorf("pull outside a repo:\n%s", r)
 	}
 }

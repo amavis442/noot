@@ -16,8 +16,9 @@ type Git interface {
 	Commit(ctx context.Context, subject, body string) (string, error)
 	HasUpstream(ctx context.Context) (bool, error)
 	HasRemote(ctx context.Context, name string) (bool, error)
-	PullRebase(ctx context.Context) error
-	Ahead(ctx context.Context) (int, error) // commits not yet on the upstream
+	PullRebase(ctx context.Context) error     // also keeps uncommitted changes (autostash)
+	Head(ctx context.Context) (string, error) // full hash of HEAD
+	Ahead(ctx context.Context) (int, error)   // commits not yet on the upstream
 	Push(ctx context.Context) error
 	PushSetUpstream(ctx context.Context, remote string) error
 }
@@ -44,8 +45,9 @@ const (
 )
 
 // Publish commits every change in the vault and pushes it: add, commit,
-// pull --rebase, push. Pulling first means a push from another machine (or
-// from the agent) does not get the push rejected.
+// pull --rebase, push. The pull only happens when there is something to push
+// (it exists to keep the push from being rejected), so "nothing to push" needs
+// no network at all.
 func (s *Service) Publish(ctx context.Context, opts PublishOptions) (PublishResult, error) {
 	var res PublishResult
 	if s.Git == nil {
@@ -104,23 +106,63 @@ func (s *Service) Publish(ctx context.Context, opts PublishOptions) (PublishResu
 		return res, nil
 	}
 
-	if !opts.NoPull {
-		if err := s.Git.PullRebase(ctx); err != nil {
-			return res, fmt.Errorf("git pull --rebase failed; resolve it in %s, then run noot push again: %w", s.Vault.Root, err)
-		}
-		res.Pulled = true
-	}
-	ahead, err := s.Git.Ahead(ctx)
+	ahead, err := s.Git.Ahead(ctx) // against the remote-tracking ref: local, no network
 	if err != nil {
 		return res, err
 	}
 	if ahead == 0 {
 		return res, nil
 	}
+	if !opts.NoPull {
+		if err := s.Git.PullRebase(ctx); err != nil {
+			return res, fmt.Errorf("git pull --rebase failed; resolve it in %s, then run noot push again: %w", s.Vault.Root, err)
+		}
+		res.Pulled = true
+	}
 	if err := s.Git.Push(ctx); err != nil {
 		return res, err
 	}
 	res.Pushed = true
+	return res, nil
+}
+
+// PullResult reports what Pull did.
+type PullResult struct {
+	From, To string // HEAD before and after
+	Changed  bool
+}
+
+// Pull brings in commits from the upstream (git pull --rebase --autostash).
+// Uncommitted local changes are kept.
+func (s *Service) Pull(ctx context.Context) (PullResult, error) {
+	var res PullResult
+	if s.Git == nil {
+		return res, errors.New("no git backend configured")
+	}
+	ok, err := s.Git.IsRepo(ctx)
+	if err != nil {
+		return res, err
+	}
+	if !ok {
+		return res, fmt.Errorf("%s is not a git repository", s.Vault.Root)
+	}
+	up, err := s.Git.HasUpstream(ctx)
+	if err != nil {
+		return res, err
+	}
+	if !up {
+		return res, errors.New("current branch has no upstream: run noot push once to set it")
+	}
+	if res.From, err = s.Git.Head(ctx); err != nil {
+		return res, err
+	}
+	if err := s.Git.PullRebase(ctx); err != nil {
+		return res, fmt.Errorf("git pull --rebase failed; resolve it in %s: %w", s.Vault.Root, err)
+	}
+	if res.To, err = s.Git.Head(ctx); err != nil {
+		return res, err
+	}
+	res.Changed = res.From != res.To
 	return res, nil
 }
 

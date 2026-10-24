@@ -241,7 +241,9 @@ func cmdPush(opts *options) *cobra.Command {
 The commit message defaults to "noot: <hash>", the first 12 characters of the
 hash of the vault's content, followed by the list of changed files. Before
 pushing, noot runs git pull --rebase so changes pushed from another machine
-are picked up instead of rejected; the index is updated afterwards.
+are picked up instead of rejected; the index is updated afterwards. When
+there is nothing to push, noot does not contact the remote at all; use
+noot pull to bring in changes from elsewhere.
 The index (.noot/) is always kept out of git.`,
 		Example: `  noot push
   noot push -m "Weekly review"
@@ -275,7 +277,7 @@ The index (.noot/) is always kept out of git.`,
 				switch {
 				case res.Note != "":
 					parts = append(parts, res.Note)
-				case len(parts) == 0 || (len(parts) == 1 && res.Pulled):
+				case len(parts) == 0:
 					parts = append(parts, "nothing to push")
 				}
 				fmt.Fprintln(e.out, strings.Join(parts, ", "))
@@ -286,4 +288,45 @@ The index (.noot/) is always kept out of git.`,
 	c.Flags().StringVarP(&po.Message, "message", "m", "", `commit message (default "noot: <content hash>")`)
 	c.Flags().BoolVar(&po.NoPull, "no-pull", false, "skip git pull --rebase before pushing")
 	return c
+}
+
+func cmdPull(opts *options) *cobra.Command {
+	return &cobra.Command{
+		Use:   "pull",
+		Short: "Bring in changes from the git remote (pull --rebase --autostash) and update the index",
+		Long: `Pulls commits pushed from another machine (or by the agent) into the vault and
+updates the index. Uncommitted local edits are kept.`,
+		Example: `  noot pull
+  noot -A pull`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return run(cmd, opts, false, func(e *env) error {
+				e.svc.Git = git.New(e.svc.Vault.Root)
+				res, err := e.svc.Pull(e.ctx)
+				if err != nil {
+					return err
+				}
+				st, err := e.svc.Sync(e.ctx, false)
+				if err != nil {
+					return err
+				}
+				if opts.asJSON {
+					return e.json(map[string]any{"from": res.From, "to": res.To, "changed": res.Changed, "notesUpdated": st.Updated, "notesRemoved": st.Deleted})
+				}
+				if !res.Changed {
+					fmt.Fprintln(e.out, "already up to date")
+					return nil
+				}
+				fmt.Fprintf(e.out, "pulled %s..%s, index updated (%d notes, %d removed)\n", short(res.From), short(res.To), st.Updated, st.Deleted)
+				return nil
+			})
+		},
+	}
+}
+
+func short(hash string) string {
+	if len(hash) > 7 {
+		return hash[:7]
+	}
+	return hash
 }

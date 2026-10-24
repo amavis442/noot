@@ -23,6 +23,9 @@ type fakeGit struct {
 	ahead    int
 	pullErr  error
 
+	head     string
+	pullHead string // HEAD after a pull; "" = unchanged
+
 	calls   []string
 	subject string
 	body    string
@@ -54,7 +57,14 @@ func (f *fakeGit) HasRemote(_ context.Context, name string) (bool, error) {
 	f.record("has-remote " + name)
 	return f.remote, nil
 }
-func (f *fakeGit) PullRebase(context.Context) error { f.record("pull"); return f.pullErr }
+func (f *fakeGit) PullRebase(context.Context) error {
+	f.record("pull")
+	if f.pullErr == nil && f.pullHead != "" {
+		f.head = f.pullHead
+	}
+	return f.pullErr
+}
+func (f *fakeGit) Head(context.Context) (string, error) { f.record("head"); return f.head, nil }
 func (f *fakeGit) Ahead(context.Context) (int, error) {
 	f.record("ahead")
 	return f.ahead, nil
@@ -86,7 +96,7 @@ func TestPublishCommitsWithTreeHashAndPushes(t *testing.T) {
 	if !strings.Contains(g.body, "M\tzettels/a.md") || !strings.Contains(g.body, "A\tlogs/2026-10-24.md") {
 		t.Errorf("body should list the changed files, got %q", g.body)
 	}
-	want := []string{"is-repo", "add", "staged", "write-tree", "commit", "has-upstream", "pull", "ahead", "push"}
+	want := []string{"is-repo", "add", "staged", "write-tree", "commit", "has-upstream", "ahead", "pull", "push"}
 	if !slices.Equal(g.calls, want) {
 		t.Errorf("calls = %v\nwant    %v", g.calls, want)
 	}
@@ -114,13 +124,17 @@ func TestPublishNothingToDo(t *testing.T) {
 	if res.Commit != "" || res.Pushed || slices.Contains(g.calls, "commit") || slices.Contains(g.calls, "push") {
 		t.Errorf("nothing to do, but result = %+v calls = %v", res, g.calls)
 	}
+	// Nothing to push means no network round trip at all.
+	if slices.Contains(g.calls, "pull") || res.Pulled {
+		t.Errorf("nothing to push must not pull: calls = %v", g.calls)
+	}
 }
 
 func TestPublishPushesEarlierUnpushedCommits(t *testing.T) {
 	g := &fakeGit{repo: true, upstream: true, ahead: 2}
 	res, err := publishSetup(t, g).Publish(context.Background(), app.PublishOptions{})
-	if err != nil || !res.Pushed {
-		t.Errorf("unpushed commits should be pushed: %+v %v", res, err)
+	if err != nil || !res.Pushed || !res.Pulled {
+		t.Errorf("unpushed commits should be pulled over and pushed: %+v %v", res, err)
 	}
 }
 
@@ -192,5 +206,45 @@ func TestPublishEnsuresIndexIsIgnored(t *testing.T) {
 	}
 	if g.calls[1] != "add" {
 		t.Errorf(".gitignore must be fixed before git add, calls = %v", g.calls)
+	}
+}
+
+func TestPullUpdatesFromRemote(t *testing.T) {
+	g := &fakeGit{repo: true, upstream: true, head: "aaa", pullHead: "bbb"}
+	res, err := publishSetup(t, g).Pull(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Changed || res.From != "aaa" || res.To != "bbb" {
+		t.Errorf("result = %+v", res)
+	}
+	if want := []string{"is-repo", "has-upstream", "head", "pull", "head"}; !slices.Equal(g.calls, want) {
+		t.Errorf("calls = %v\nwant    %v", g.calls, want)
+	}
+}
+
+func TestPullAlreadyUpToDate(t *testing.T) {
+	g := &fakeGit{repo: true, upstream: true, head: "aaa"}
+	res, err := publishSetup(t, g).Pull(context.Background())
+	if err != nil || res.Changed {
+		t.Errorf("result = %+v, %v", res, err)
+	}
+}
+
+func TestPullNeedsRepoAndUpstream(t *testing.T) {
+	if _, err := publishSetup(t, &fakeGit{}).Pull(context.Background()); err == nil ||
+		!strings.Contains(err.Error(), "not a git repository") {
+		t.Errorf("no repo: %v", err)
+	}
+	if _, err := publishSetup(t, &fakeGit{repo: true}).Pull(context.Background()); err == nil ||
+		!strings.Contains(err.Error(), "no upstream") {
+		t.Errorf("no upstream: %v", err)
+	}
+}
+
+func TestPullFailureIsReported(t *testing.T) {
+	g := &fakeGit{repo: true, upstream: true, head: "aaa", pullErr: errors.New("conflict in a.md")}
+	if _, err := publishSetup(t, g).Pull(context.Background()); err == nil || !strings.Contains(err.Error(), "conflict in a.md") {
+		t.Errorf("err = %v", err)
 	}
 }
