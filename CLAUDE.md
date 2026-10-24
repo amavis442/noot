@@ -24,8 +24,8 @@ Patrick's global `~/.claude/CLAUDE.md` applies; the points that matter most here
 
 - Converse in Dutch; code, comments, commit messages, PRs and tags in English. The README is Dutch.
 - Commit as `Amavis442 <patteun8@gmail.com>`. Never add Co-Authored-By or other AI attribution trailers.
-- Work on `feat/*`, `fix/*` or `docs/*` branches and open a PR. Never push `main` or tags; Patrick merges and tags.
-- TDD; unit, integration and end-to-end tests. Every Go file starts with a 2-line `// ABOUTME:` comment.
+- **noot is the one code repo where work goes straight to `main`** (no feature branches needed). Tags are still Patrick's. Every other code repo: `feat/*` / `fix/*` branches + PR, never push `main` or tags.
+- TDD; unit, integration **and** end-to-end tests (`make test` runs all three). No exceptions.
 
 **Accepted exception:** noot uses idiomatic Go layering (`internal/domain`, `app`, `storage`, `cli`) instead of feature-first folders. It is a small CLI with one domain; the dependency rule still holds (domain has no project imports, storage implements an `app` port).
 
