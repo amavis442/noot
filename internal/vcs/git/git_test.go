@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -198,5 +199,74 @@ func TestMsysToWindows(t *testing.T) {
 		if got := msysToWindows(in); got != want {
 			t.Errorf("msysToWindows(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+// TestNoGlobCharactersInArgs guards against MSYS2/Cygwin git on Windows: when
+// such a git is started from a non-MSYS process, its runtime glob- and
+// brace-expands the arguments, so "@{u}" stops meaning "upstream". Every
+// argument noot passes must be free of glob characters.
+func TestNoGlobCharactersInArgs(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a shell-script wrapper around git")
+	}
+	ctx := context.Background()
+	work, _ := repoWithRemote(t)
+	logFile := filepath.Join(t.TempDir(), "args.log")
+	real, err := exec.LookPath("git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrapper := filepath.Join(t.TempDir(), "git-wrapper")
+	script := "#!/bin/sh\nfor a in \"$@\"; do printf '%s\\n' \"$a\" >> '" + logFile + "'; done\nexec '" + real + "' \"$@\"\n"
+	if err := os.WriteFile(wrapper, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	g := &Repo{dir: work, bin: wrapper}
+
+	write(t, work, "a.md", "# A")
+	_, _ = g.IsRepo(ctx)
+	_ = g.AddAll(ctx)
+	_, _ = g.StagedChanges(ctx)
+	_, _ = g.WriteTree(ctx)
+	_, _ = g.Commit(ctx, "first", "")
+	_, _ = g.HasUpstream(ctx)
+	_, _ = g.HasRemote(ctx, "origin")
+	_ = g.PushSetUpstream(ctx, "origin")
+	if up, err := g.HasUpstream(ctx); err != nil || !up {
+		t.Fatalf("upstream not detected after push -u: %v %v", up, err)
+	}
+	_ = g.PullRebase(ctx)
+	if n, err := g.Ahead(ctx); err != nil || n != 0 {
+		t.Errorf("ahead = %d, %v", n, err)
+	}
+	_ = g.Push(ctx)
+
+	b, err := os.ReadFile(logFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, arg := range strings.Split(strings.TrimSpace(string(b)), "\n") {
+		if strings.ContainsAny(arg, "{}*?[") {
+			t.Errorf("argument %q contains glob characters; MSYS2 git would expand it", arg)
+		}
+	}
+}
+
+func TestUpstreamOnDetachedHeadAndUntrackedBranch(t *testing.T) {
+	ctx := context.Background()
+	work, _ := repoWithRemote(t)
+	g := New(work)
+	write(t, work, "a.md", "# A")
+	_ = g.AddAll(ctx)
+	if _, err := g.Commit(ctx, "first", ""); err != nil {
+		t.Fatal(err)
+	}
+	if up, err := g.HasUpstream(ctx); err != nil || up {
+		t.Errorf("untracked branch: up=%v err=%v", up, err)
+	}
+	run(t, work, "checkout", "-q", "--detach")
+	if up, err := g.HasUpstream(ctx); err != nil || up {
+		t.Errorf("detached HEAD: up=%v err=%v", up, err)
 	}
 }

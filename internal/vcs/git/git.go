@@ -87,8 +87,20 @@ func (r *Repo) Commit(ctx context.Context, subject, body string) (string, error)
 
 // HasUpstream reports whether the current branch tracks a remote branch.
 func (r *Repo) HasUpstream(ctx context.Context) (bool, error) {
-	_, err := r.run(ctx, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
-	return err == nil, nil
+	up, err := r.upstream(ctx)
+	return up != "", err
+}
+
+// upstream returns the current branch's upstream ("origin/main"), or "" when
+// there is none or HEAD is detached. It deliberately avoids the @{u} syntax:
+// MSYS2/Cygwin git started from a native Windows process brace-expands its
+// arguments, which turns "@{u}" into something else.
+func (r *Repo) upstream(ctx context.Context) (string, error) {
+	branch, err := r.run(ctx, "symbolic-ref", "-q", "HEAD")
+	if err != nil {
+		return "", nil // detached HEAD
+	}
+	return r.run(ctx, "for-each-ref", "--format=%(upstream:short)", branch)
 }
 
 // HasRemote reports whether a remote with that name exists.
@@ -113,7 +125,14 @@ func (r *Repo) PullRebase(ctx context.Context) error {
 
 // Ahead returns the number of local commits not on the upstream.
 func (r *Repo) Ahead(ctx context.Context) (int, error) {
-	out, err := r.run(ctx, "rev-list", "--count", "@{u}..HEAD")
+	up, err := r.upstream(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if up == "" {
+		return 0, errors.New("current branch has no upstream")
+	}
+	out, err := r.run(ctx, "rev-list", "--count", up+"..HEAD")
 	if err != nil {
 		return 0, err
 	}
