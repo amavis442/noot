@@ -18,10 +18,10 @@ make install                      # go install met versie-info → $GOPATH/bin
 | `make build-linux` / `make build-windows` | Cross-compile naar `bin/` |
 | `make dist` | Release-binaries in `dist/` voor linux en windows (amd64 + arm64) |
 | `make test` | `go vet` + `go test` |
-| `make run ARGS="search sqlite"` | Bouwen en meteen draaien |
+| `make run ARGS="search sqlite"` | Draaien zonder te installeren (`go run`) |
 | `make clean` / `fmt` / `tidy` / `help` | |
 
-De Makefile werkt met GNU make op Linux en op Windows (`choco install make`, `scoop install make` of `winget install GnuWin32.Make`), vanuit cmd, PowerShell of Git Bash. Op Windows draaien de recipes altijd in cmd.exe. De versie (`noot --version`) komt uit `git describe`.
+De Makefile werkt met elke GNU make, op Linux en op Windows (native, MSYS2 of Git Bash), en vanuit cmd, PowerShell of bash. De recipes roepen alleen `go`, `make` en `echo` aan, dus het maakt niet uit welke shell make gebruikt. `noot --version` toont de git-commit die Go in de binary zet; voor een release geef je `make dist VERSION=v0.2.0` mee.
 
 Er is geen cgo nodig: de SQLite-driver (`ncruces/go-sqlite3`) draait als WebAssembly via wazero. Je hebt dus geen C-compiler nodig, en alle binaries zijn statisch.
 

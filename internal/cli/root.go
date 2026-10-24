@@ -10,7 +10,9 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"regexp"
 	"runtime"
+	"runtime/debug"
 	"strings"
 
 	"github.com/amavis442/noot/internal/app"
@@ -20,8 +22,46 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Version is set at build time: -ldflags "-X github.com/amavis442/noot/internal/cli.Version=v0.1.0"
-var Version = "dev"
+// Version can be set at build time: -ldflags "-X github.com/amavis442/noot/internal/cli.Version=v0.2.0".
+// When it is not, version() falls back to the module version or the git commit
+// that Go embeds in the binary.
+var Version = ""
+
+var pseudoVersion = regexp.MustCompile(`\d{14}-[0-9a-f]{12}`)
+
+func version() string {
+	if Version != "" {
+		return Version
+	}
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "dev"
+	}
+	// A real tag (go install …/cmd/noot@v0.2.0) wins; pseudo-versions such as
+	// v0.0.0-20261024124715-110c15d0fbf3+dirty are replaced by the short commit.
+	if v := bi.Main.Version; v != "" && v != "(devel)" && !pseudoVersion.MatchString(v) {
+		return v
+	}
+	rev, dirty := "", false
+	for _, s := range bi.Settings {
+		switch s.Key {
+		case "vcs.revision":
+			rev = s.Value
+		case "vcs.modified":
+			dirty = s.Value == "true"
+		}
+	}
+	if rev == "" {
+		return "dev"
+	}
+	if len(rev) > 7 {
+		rev = rev[:7]
+	}
+	if dirty {
+		rev += "-dirty"
+	}
+	return rev
+}
 
 type options struct {
 	vaultRef string // name from the config, or a path
@@ -55,7 +95,7 @@ Vault selection, first match wins:
   $NOOT_VAULT            same, from the environment
   current directory      when it is (inside) a vault with .noot/
   default vault          from the config (noot vault default <name>)`,
-		Version:       Version,
+		Version:       version(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
