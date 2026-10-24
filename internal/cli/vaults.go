@@ -191,7 +191,7 @@ func cmdAppend(opts *options) *cobra.Command {
 	c := &cobra.Command{
 		Use:   "append <note> [text...]",
 		Short: "Append text to a note (text from args or stdin)",
-		Example: `  noot -A append projects/noot "- [ ] add noot serve"
+		Example: `  noot -A append projects/noot/noot "- [ ] add noot serve"
   noot -A append --create scratch/ideas.md - < ideas.txt`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

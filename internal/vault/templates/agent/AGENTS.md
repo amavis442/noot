@@ -27,7 +27,7 @@ the owner explicitly asks for a specific change.
 | `logs/` | One file per day (`logs/YYYY-MM-DD.md`). Append-only. Written with `noot -A log`. |
 | `memory/` | Durable facts: the owner's preferences, environment, recurring patterns. One subject per file, linked from `memory/index.md`. Update in place; don't append duplicates. |
 | `decisions/` | One note per decision (ADR style): context, options, decision, consequences. File name `YYYY-MM-DD-short-slug.md`. |
-| `projects/` | One note per project the agent works on: status, open threads, how to build/test, gotchas. |
+| `projects/<project>/` | One folder per project, mirroring the folder layout on disk (a repo with subprojects gets a subfolder per subproject). `<project>.md` is the main note: status, open threads, how to build/test, gotchas. Plans and other notes of the project sit next to it; create them with `noot -A new "Title" -d projects/<project>`. |
 | `scratch/` | Temporary working notes. Safe to delete; nothing here is authoritative. |
 
 ## Writing rules
@@ -46,7 +46,7 @@ the owner explicitly asks for a specific change.
 noot -A log -p noot "Added named vaults; tests green"     # append to today's log
 noot -A new "Use SQLite FTS5 for search" -d decisions      # new decision note
 noot -A cat memory/index                                    # print a note
-noot -A append projects/noot "- [ ] add noot serve"         # append to a note
+noot -A append projects/noot/noot "- [ ] add noot serve"         # append to a note
 noot -A search --json fts5                                  # machine-readable search
 noot -A backlinks noot                                      # what refers to the project
 noot -A broken                                              # links to notes that don't exist yet
