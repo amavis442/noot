@@ -59,6 +59,7 @@ type Store struct{ db *sql.DB }
 
 // Open opens (or creates) the index database at file.
 func Open(file string) (*Store, error) {
+	configureRuntime()
 	db, err := sql.Open("sqlite3", file)
 	if err != nil {
 		return nil, err
