@@ -8,8 +8,10 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/amavis442/noot/internal/app"
 	"github.com/amavis442/noot/internal/config"
 	"github.com/amavis442/noot/internal/vault"
+	"github.com/amavis442/noot/internal/vcs/git"
 	"github.com/spf13/cobra"
 )
 
@@ -226,5 +228,62 @@ func cmdAppend(opts *options) *cobra.Command {
 	}
 	c.Flags().SetInterspersed(false) // flags go before <note>; text like "- [ ] todo" stays text
 	c.Flags().BoolVar(&create, "create", false, "create the note (as a vault-relative path) if it does not exist")
+	return c
+}
+
+func cmdPush(opts *options) *cobra.Command {
+	var po app.PublishOptions
+	c := &cobra.Command{
+		Use:   "push",
+		Short: "Commit all changes in the vault and push them (git add, commit, pull --rebase, push)",
+		Long: `Commits every change in the vault and pushes it to the git remote.
+
+The commit message defaults to "noot: <hash>", the first 12 characters of the
+hash of the vault's content, followed by the list of changed files. Before
+pushing, noot runs git pull --rebase so changes pushed from another machine
+are picked up instead of rejected; the index is updated afterwards.
+The index (.noot/) is always kept out of git.`,
+		Example: `  noot push
+  noot push -m "Weekly review"
+  noot -A push                 # the agent vault`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return run(cmd, opts, false, func(e *env) error {
+				e.svc.Git = git.New(e.svc.Vault.Root)
+				res, err := e.svc.Publish(e.ctx, po)
+				if err != nil {
+					return err
+				}
+				if res.Pulled {
+					if _, err := e.svc.Sync(e.ctx, false); err != nil {
+						return err
+					}
+				}
+				if opts.asJSON {
+					return e.json(res)
+				}
+				var parts []string
+				if res.Commit != "" {
+					parts = append(parts, fmt.Sprintf("committed %s (%d files)", res.Commit, res.Files))
+				}
+				if res.Pulled {
+					parts = append(parts, "pulled")
+				}
+				if res.Pushed {
+					parts = append(parts, "pushed")
+				}
+				switch {
+				case res.Note != "":
+					parts = append(parts, res.Note)
+				case len(parts) == 0 || (len(parts) == 1 && res.Pulled):
+					parts = append(parts, "nothing to push")
+				}
+				fmt.Fprintln(e.out, strings.Join(parts, ", "))
+				return nil
+			})
+		},
+	}
+	c.Flags().StringVarP(&po.Message, "message", "m", "", `commit message (default "noot: <content hash>")`)
+	c.Flags().BoolVar(&po.NoPull, "no-pull", false, "skip git pull --rebase before pushing")
 	return c
 }

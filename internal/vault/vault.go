@@ -98,23 +98,30 @@ func (v *Vault) Init(kind config.Kind) error {
 			return err
 		}
 	}
+	return v.EnsureGitignore()
+}
+
+// EnsureGitignore makes sure .noot/ (the generated index) is listed in the
+// vault's .gitignore, creating the file when needed.
+func (v *Vault) EnsureGitignore() error {
 	gi := filepath.Join(v.Root, ".gitignore")
 	b, err := os.ReadFile(gi)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
-	if !strings.Contains(string(b), MetaDir+"/") {
-		f, err := os.OpenFile(gi, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-		if len(b) > 0 && !strings.HasSuffix(string(b), "\n") {
-			fmt.Fprintln(f)
-		}
-		fmt.Fprintf(f, "# noot index (generated)\n%s/\n", MetaDir)
+	if strings.Contains(string(b), MetaDir+"/") {
+		return nil
 	}
-	return nil
+	f, err := os.OpenFile(gi, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if len(b) > 0 && !strings.HasSuffix(string(b), "\n") {
+		fmt.Fprintln(f)
+	}
+	_, err = fmt.Fprintf(f, "# noot index (generated)\n%s/\n", MetaDir)
+	return err
 }
 
 // Walk returns every note file with its state, keyed by vault-relative path.

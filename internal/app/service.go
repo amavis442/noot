@@ -36,6 +36,7 @@ type Store interface {
 type Service struct {
 	Vault *vault.Vault
 	Store Store
+	Git   Git // optional; only Publish needs it
 }
 
 // SyncStats reports what a sync did.

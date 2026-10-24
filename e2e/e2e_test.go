@@ -446,3 +446,102 @@ func TestVersionAndHelp(t *testing.T) {
 		t.Errorf("unknown command should fail:\n%s", r)
 	}
 }
+
+// gitRepo turns dir into a git repo with a bare "origin", isolated from the
+// user's git config, and returns the bare repo path.
+func (e *env) gitRepo(dir string) string {
+	e.t.Helper()
+	e.extra = append(e.extra,
+		"GIT_CONFIG_GLOBAL="+filepath.Join(e.root, "gitconfig"), "GIT_CONFIG_NOSYSTEM=1",
+		"GIT_AUTHOR_NAME=Test", "GIT_AUTHOR_EMAIL=test@example.com",
+		"GIT_COMMITTER_NAME=Test", "GIT_COMMITTER_EMAIL=test@example.com")
+	bare := e.path(filepath.Base(dir) + "-remote.git")
+	e.git(e.root, "init", "-q", "--bare", "-b", "main", bare)
+	e.git(dir, "init", "-q", "-b", "main")
+	e.git(dir, "remote", "add", "origin", bare)
+	return bare
+}
+
+func (e *env) git(dir string, args ...string) string {
+	e.t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir, cmd.Env = dir, e.environ()
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		e.t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func TestPush(t *testing.T) {
+	e := newEnv(t)
+	e.ok("init", e.path("v"), "--name", "v")
+	bare := e.gitRepo(e.path("v"))
+	e.write("v/zettels/a.md", "# A\n[[b]]")
+	e.write("v/zettels/b.md", "# B")
+	e.ok("-V", "v", "index") // creates .noot/index.db, which must not be committed
+
+	// First push: commit with tree-hash message, set upstream.
+	out := e.ok("-V", "v", "push")
+	contains(t, "first push", out, "committed", "pushed")
+	subject := e.git(bare, "log", "-1", "--format=%s", "main")
+	if !strings.HasPrefix(subject, "noot: ") || len(subject) != len("noot: ")+12 {
+		t.Errorf("subject = %q, want noot: <12-char hash>", subject)
+	}
+	files := e.git(bare, "ls-tree", "-r", "--name-only", "main")
+	contains(t, "pushed files", files, "zettels/a.md", "zettels/b.md", ".gitignore")
+	lacks(t, "pushed files", files, ".noot/")
+	body := e.git(bare, "log", "-1", "--format=%b", "main")
+	contains(t, "body lists changes", body, "A\tzettels/a.md")
+
+	// Nothing changed: nothing to do.
+	contains(t, "no changes", e.ok("-V", "v", "push"), "nothing to push")
+
+	// Custom message, and the agent vault selection works too.
+	e.write("v/zettels/a.md", "# A changed")
+	e.ok("-V", "v", "push", "-m", "Weekly notes")
+	if s := e.git(bare, "log", "-1", "--format=%s", "main"); s != "Weekly notes" {
+		t.Errorf("custom subject = %q", s)
+	}
+
+	// Another machine pushed in the meantime: noot pulls (rebase) first.
+	other := e.path("other")
+	e.git(e.root, "clone", "-q", bare, other)
+	e.write("other/zettels/from-other.md", "# From the other machine\nkeyword-otter")
+	e.git(other, "add", "-A")
+	e.git(other, "commit", "-q", "-m", "other machine")
+	e.git(other, "push", "-q")
+	e.write("v/zettels/local.md", "# Local")
+	contains(t, "push after remote change", e.ok("-V", "v", "push"), "pulled", "pushed")
+	files = e.git(bare, "ls-tree", "-r", "--name-only", "main")
+	contains(t, "both changes on remote", files, "zettels/from-other.md", "zettels/local.md")
+	// The index was updated with the pulled note.
+	contains(t, "pulled note searchable", e.ok("-V", "v", "--no-sync", "search", "keyword-otter"), "zettels/from-other.md")
+
+	var res struct {
+		Commit string
+		Pushed bool
+	}
+	e.write("v/zettels/json.md", "# JSON")
+	if err := json.Unmarshal([]byte(e.ok("-V", "v", "push", "--json")), &res); err != nil || res.Commit == "" || !res.Pushed {
+		t.Errorf("push --json = %+v, %v", res, err)
+	}
+}
+
+func TestPushWithoutRemoteOrRepo(t *testing.T) {
+	e := newEnv(t)
+	e.ok("init", e.path("v"), "--name", "v")
+	r := e.run("-V", "v", "push")
+	if r.code == 0 || !strings.Contains(r.stderr, "not a git repository") {
+		t.Errorf("push outside a repo:\n%s", r)
+	}
+
+	e.gitRepo(e.path("v"))
+	e.git(e.path("v"), "remote", "remove", "origin")
+	e.write("v/a.md", "# A")
+	out := e.ok("-V", "v", "push")
+	contains(t, "local only", out, "committed", "no remote configured")
+	if log := e.git(e.path("v"), "log", "--oneline"); !strings.Contains(log, "noot: ") {
+		t.Errorf("expected a local commit, log = %q", log)
+	}
+}

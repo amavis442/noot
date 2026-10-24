@@ -96,6 +96,7 @@ Elk leescommando werkt de index eerst incrementeel bij (op basis van mtime en gr
 | `today [--offset -1] [--print]` | Dagnotitie openen of aanmaken |
 | `open <note> [--print]` | Notitie openen via id, pad, bestandsnaam, titel of alias |
 | `watch` | Index live bijhouden (Ctrl+C om te stoppen) |
+| `push [-m melding] [--no-pull]` | Alles committen en pushen: `git add -A`, commit, `pull --rebase`, `push` |
 
 Overal kun je `--json` toevoegen voor scripts, fzf of een AI-agent. Bijvoorbeeld:
 
@@ -104,6 +105,22 @@ noot search --json repository | jq -r '.[].path' | fzf --preview 'bat --color=al
 ```
 
 `<note>` wordt in deze volgorde opgezocht: **id → pad → bestandsnaam → titel → alias**, zonder onderscheid tussen hoofd- en kleine letters. Diezelfde volgorde wordt gebruikt om `[[wikilinks]]` op te lossen.
+
+## Synchroniseren met git
+
+Een vault is gewoon een git-repo. `noot push` doet de hele ronde in één keer:
+
+```bash
+noot push                     # commit "noot: 3f9a1c2e4b7d" + lijst met gewijzigde bestanden, pull --rebase, push
+noot push -m "Weekly review"  # eigen melding
+noot -A push                  # de agent-vault
+```
+
+- De standaardmelding is `noot: <hash>`: de eerste 12 tekens van de hash van de inhoud van de vault (`git write-tree`). Identieke inhoud geeft dus dezelfde hash. In de body staan de gewijzigde bestanden.
+- Eerst `git pull --rebase`, zodat een push vanaf een andere machine (of van je agent) wordt meegenomen in plaats van geweigerd. Daarna werkt noot de index bij.
+- Heeft de branch nog geen upstream maar wel een `origin`, dan doet noot `git push -u origin HEAD`. Zonder remote wordt er alleen lokaal gecommit.
+- `.noot/` (de index) komt nooit in git; noot zet het zo nodig in `.gitignore`.
+- noot gebruikt `git` uit je PATH, dus je eigen config, credentials en SSH-sleutels.
 
 ## Conventies
 
