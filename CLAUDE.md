@@ -14,15 +14,20 @@ My working memory is the **agent vault** (repo `amavis442/noot-claude`), managed
 At the start of every session:
 1. Pull the vault (`git -C <vault> pull`), then read its `AGENTS.md` and `memory/index.md`.
 2. Read `projects/noot.md` in the vault: status, gotchas, open threads for this repo.
-3. Log while working: `noot -A log -p noot "<what, why, what's next>"`. Commit and push the vault when done.
+3. Log while working: `noot -A log -p noot "<what, why, what's next>"`. Commit and push the vault when done: the vault is the one repo that may be pushed straight to `main`.
 
 Patrick's own vault (`D:\Noot\Patrick`, repo `amavis442/noot-patrick`) is **read-only** for agents unless he asks for a specific change.
 
 ## Working with Patrick
 
-- Converse in Dutch; code, comments, commit messages and docs for agents in English. The README is Dutch.
-- Commit as `Amavis442 <patteun8@gmail.com>`.
-- He prefers clean architecture: domain independent of storage and delivery.
+Patrick's global `~/.claude/CLAUDE.md` applies; the points that matter most here:
+
+- Converse in Dutch; code, comments, commit messages, PRs and tags in English. The README is Dutch.
+- Commit as `Amavis442 <patteun8@gmail.com>`. Never add Co-Authored-By or other AI attribution trailers.
+- **noot is the one code repo where work goes straight to `main`** (no feature branches needed). Tags are still Patrick's. Every other code repo: `feat/*` / `fix/*` branches + PR, never push `main` or tags.
+- TDD; unit, integration **and** end-to-end tests (`make test` runs all three). No exceptions.
+
+**Accepted exception:** noot uses idiomatic Go layering (`internal/domain`, `app`, `storage`, `cli`) instead of feature-first folders. It is a small CLI with one domain; the dependency rule still holds (domain has no project imports, storage implements an `app` port).
 
 ## This repo
 
