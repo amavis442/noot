@@ -8,14 +8,22 @@ De bestanden zijn de bron van waarheid. `noot` bouwt er een index naast (SQLite 
 
 ```bash
 go mod tidy                       # eerste keer: haalt de ontbrekende checksums op
-go install ./cmd/noot             # → $GOPATH/bin/noot(.exe)
+make                              # → bin/noot (Linux) of bin\noot.exe (Windows)
+make install                      # go install met versie-info → $GOPATH/bin
 ```
 
-Er is geen cgo nodig: de SQLite-driver (`ncruces/go-sqlite3`) draait als WebAssembly via wazero. Daardoor werkt `go build` hetzelfde op Windows, Linux en in Docker. Cross-compilen kan gewoon:
+| Make-target | Wat |
+|---|---|
+| `make` / `make build` | Build voor dit systeem; `.exe` wordt automatisch toegevoegd op Windows |
+| `make build-linux` / `make build-windows` | Cross-compile naar `bin/` |
+| `make dist` | Release-binaries in `dist/` voor linux en windows (amd64 + arm64) |
+| `make test` | `go vet` + `go test` |
+| `make run ARGS="search sqlite"` | Bouwen en meteen draaien |
+| `make clean` / `fmt` / `tidy` / `help` | |
 
-```bash
-GOOS=linux GOARCH=amd64 go build -o dist/noot ./cmd/noot
-```
+De Makefile werkt met GNU make op Linux en op Windows (`choco install make`, `scoop install make` of `winget install GnuWin32.Make`), vanuit cmd, PowerShell of Git Bash. Op Windows draaien de recipes altijd in cmd.exe. De versie (`noot --version`) komt uit `git describe`.
+
+Er is geen cgo nodig: de SQLite-driver (`ncruces/go-sqlite3`) draait als WebAssembly via wazero. Je hebt dus geen C-compiler nodig, en alle binaries zijn statisch.
 
 ## Snel starten
 
