@@ -1,0 +1,5 @@
+/dist/
+/noot
+/noot.exe
+*.test
+.noot/
