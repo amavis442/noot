@@ -21,8 +21,8 @@ func cmdInit(opts *options) *cobra.Command {
 	c := &cobra.Command{
 		Use:   "init [dir]",
 		Short: "Create a vault (folder layout, .noot/, .gitignore) and optionally register it",
-		Example: `  noot init D:\Notes --name patrick
-  noot init D:\Notes-claude --name claude --agent`,
+		Example: `  noot init D:\Noot\Patrick --name patrick
+  noot init D:\Noot\Claude --name claude --agent`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dir := "."

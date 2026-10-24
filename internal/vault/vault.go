@@ -125,7 +125,7 @@ func (v *Vault) Walk() (map[string]domain.FileState, error) {
 			return err
 		}
 		if d.IsDir() {
-			if p != v.Root && (skipDirs[d.Name()] || strings.HasPrefix(d.Name(), ".")) {
+			if p != v.Root && (skipDirs[d.Name()] || strings.HasPrefix(d.Name(), ".") || isVaultRoot(p)) {
 				return filepath.SkipDir
 			}
 			return nil
@@ -166,7 +166,14 @@ func (v *Vault) ShouldWatchDir(abs string) bool {
 			return false
 		}
 	}
-	return true
+	return !isVaultRoot(abs)
+}
+
+// isVaultRoot reports whether dir is itself a vault (has .noot/). Nested vaults
+// are skipped so D:\Noot can hold several vaults without one indexing the others.
+func isVaultRoot(dir string) bool {
+	fi, err := os.Stat(filepath.Join(dir, MetaDir))
+	return err == nil && fi.IsDir()
 }
 
 // NewNote creates dir/<slug>.md with frontmatter and returns its relative path.

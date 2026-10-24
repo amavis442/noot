@@ -20,8 +20,8 @@ GOOS=linux GOARCH=amd64 go build -o dist/noot ./cmd/noot
 ## Snel starten
 
 ```bash
-noot init D:\Notes                # maakt journal/ zettels/ projects/ attachments/ .noot/ + .gitignore
-cd D:\Notes
+noot init D:\Noot\Patrick         # maakt journal/ zettels/ projects/ attachments/ .noot/ + .gitignore
+cd D:\Noot\Patrick
 noot today                        # opent journal/2026-10-24.md in $EDITOR
 noot new "Clean architecture in Go" -t go -t architectuur
 noot search clean arch            # prefix-match, accenten worden genegeerd (cafe = café)
@@ -33,12 +33,14 @@ noot backlinks "clean architecture in go"
 Je kunt meerdere vaults een naam geven. Het idee is een vault voor jezelf en een aparte vault voor je AI-agent. Daarin houdt de agent zijn logs, geheugen en beslissingen bij, zonder in jouw notities te schrijven.
 
 ```bash
-noot init D:\Notes        --name patrick            # persoonlijk: journal/ zettels/ projects/ attachments/
-noot init D:\Notes-claude --name claude --agent     # agent: AGENTS.md logs/ memory/ decisions/ projects/ scratch/
+noot init D:\Noot\Patrick --name patrick           # persoonlijk: journal/ zettels/ projects/ attachments/
+noot init D:\Noot\Claude  --name claude --agent    # agent: AGENTS.md logs/ memory/ decisions/ projects/ scratch/
 noot vault list
-#   A claude   agent     D:\Notes-claude
-#   * patrick  personal  D:\Notes
+#   A claude   agent     D:\Noot\Claude
+#   * patrick  personal  D:\Noot\Patrick
 ```
+
+Je kunt alle vaults onder één map zetten, bijvoorbeeld `D:\Noot\`. Een vault slaat submappen met een eigen `.noot/` altijd over, dus vaults kunnen niet per ongeluk elkaars notities indexeren.
 
 De eerste persoonlijke vault wordt de **default** (`*`) en de eerste agent-vault de **agent-vault** (`A`). Dat kun je later veranderen met `noot vault default <naam>` en `noot vault agent <naam>`. De namen staan in `%AppData%\noot\config.yaml` (Windows) of `~/.config/noot/config.yaml` (Linux), of op de plek die je met `$NOOT_CONFIG` opgeeft.
 
