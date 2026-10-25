@@ -119,6 +119,7 @@ Vault selection, first match wins:
 		cmdTags(opts),
 		cmdNew(opts),
 		cmdToday(opts),
+		cmdAgenda(opts),
 		cmdLog(opts),
 		cmdCat(opts),
 		cmdAppend(opts),

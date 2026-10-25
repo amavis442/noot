@@ -484,6 +484,34 @@ func cmdToday(opts *options) *cobra.Command {
 	return c
 }
 
+func cmdAgenda(opts *options) *cobra.Command {
+	var noOpen bool
+	var offset int
+	c := &cobra.Command{
+		Use:   "agenda",
+		Short: "Open (and create if needed) this week's agenda: agenda/YYYY-Www.md, a heading per day",
+		Example: `  noot agenda
+  noot agenda --offset 1        # next week
+  noot agenda --print`,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return run(cmd, opts, false, func(e *env) error {
+				rel, _, err := e.svc.Vault.Agenda(time.Now().AddDate(0, 0, 7*offset))
+				if err != nil {
+					return err
+				}
+				if noOpen {
+					fmt.Fprintln(e.out, rel)
+					return nil
+				}
+				return openInEditor(e.svc.Vault.Abs(rel))
+			})
+		},
+	}
+	c.Flags().BoolVar(&noOpen, "print", false, "print the path instead of opening the editor")
+	c.Flags().IntVar(&offset, "offset", 0, "weeks from this week, e.g. 1 for next week")
+	return c
+}
+
 func cmdOpen(opts *options) *cobra.Command {
 	var printOnly bool
 	c := &cobra.Command{

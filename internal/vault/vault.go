@@ -253,6 +253,27 @@ func (v *Vault) Journal(day time.Time) (rel string, created bool, err error) {
 	return rel, true, v.write(rel, content)
 }
 
+// Agenda returns agenda/YYYY-Www.md for the ISO week (Monday to Sunday) that
+// day falls in, creating it with a heading per day when missing.
+func (v *Vault) Agenda(day time.Time) (rel string, created bool, err error) {
+	year, week := day.ISOWeek()
+	rel = fmt.Sprintf("agenda/%d-W%02d.md", year, week)
+	if exists(v.Abs(rel)) {
+		return rel, false, nil
+	}
+	y, m, d := day.Date()
+	monday := time.Date(y, m, d, 0, 0, 0, 0, day.Location())
+	monday = monday.AddDate(0, 0, -(int(monday.Weekday())+6)%7)
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "---\ntitle: Agenda %d-W%02d\ncreated: %s\ntags: [agenda]\n---\n\n", year, week, monday.Format("2006-01-02"))
+	fmt.Fprintf(&b, "# Week %d, %d\n\n", week, year)
+	for i := range 7 {
+		fmt.Fprintf(&b, "## %s\n\n", monday.AddDate(0, 0, i).Format("Monday 2 January"))
+	}
+	return rel, true, v.write(rel, b.String())
+}
+
 func (v *Vault) write(rel, content string) error {
 	abs := v.Abs(rel)
 	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {

@@ -33,6 +33,7 @@ De eerste keer dat noot draait, compileert hij SQLite (ongeveer 1 seconde) en be
 noot init D:\Noot\Patrick         # maakt journal/ zettels/ projects/ attachments/ .noot/ + .gitignore
 cd D:\Noot\Patrick
 noot today                        # opent journal/2026-10-24.md in $EDITOR
+noot agenda                       # opent agenda/2026-W43.md, de agenda van deze week
 noot new "Clean architecture in Go" -t go -t architectuur
 noot search clean arch            # prefix-match, accenten worden genegeerd (cafe = café)
 noot backlinks "clean architecture in go"
@@ -97,6 +98,7 @@ Elk leescommando werkt de index eerst incrementeel bij (op basis van mtime en gr
 | `tags [tag]` | Tag-overzicht met aantallen, of de notities met een tag (`go` matcht ook `go/generics`) |
 | `new <titel> [-d zettels] [-t tag] [-o]` | Nieuwe notitie met frontmatter |
 | `today [--offset -1] [--print]` | Dagnotitie openen of aanmaken |
+| `agenda [--offset 1] [--print]` | Weekagenda openen of aanmaken: `agenda/JJJJ-Www.md` (ISO-week, maandag t/m zondag) met een kop per dag; `--offset` telt in weken |
 | `open <note> [--print]` | Notitie openen via id, pad, bestandsnaam, titel of alias |
 | `watch` | Index live bijhouden (Ctrl+C om te stoppen) |
 | `push [-m melding] [--no-pull]` | Alles committen en pushen: `git add -A`, commit, `pull --rebase`, `push` |

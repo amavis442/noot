@@ -687,3 +687,21 @@ func TestStatus(t *testing.T) {
 	}
 	contains(t, "status --json", strings.Join(paths, "\n"), "A logs/2026-10-25.md", "A AGENTS.md")
 }
+
+func TestAgenda(t *testing.T) {
+	e := newEnv(t)
+	e.ok("init", e.path("me"), "--name", "me")
+
+	y, w := time.Now().ISOWeek()
+	rel := strings.TrimSpace(e.ok("agenda", "--print"))
+	if want := fmt.Sprintf("agenda/%d-W%02d.md", y, w); rel != want {
+		t.Fatalf("agenda --print = %q, want %q", rel, want)
+	}
+	contains(t, "agenda", e.read("me/"+rel), "tags: [agenda]", fmt.Sprintf("# Week %d, %d", w, y), "## Monday ", "## Sunday ")
+
+	ny, nw := time.Now().AddDate(0, 0, 7).ISOWeek()
+	if got := strings.TrimSpace(e.ok("agenda", "--print", "--offset", "1")); got != fmt.Sprintf("agenda/%d-W%02d.md", ny, nw) {
+		t.Errorf("agenda --offset 1 = %q", got)
+	}
+	contains(t, "agenda is a note", e.ok("tags", "agenda"), rel)
+}
