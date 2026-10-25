@@ -112,6 +112,8 @@ Vault selection, first match wins:
 		cmdSearch(opts),
 		cmdBacklinks(opts),
 		cmdLinks(opts),
+		cmdContext(opts),
+		cmdRename(opts),
 		cmdBroken(opts),
 		cmdOrphans(opts),
 		cmdTags(opts),

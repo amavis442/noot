@@ -47,3 +47,22 @@ func TestWalkSkipsNestedVaults(t *testing.T) {
 		t.Errorf("child walk = %v", files)
 	}
 }
+
+func TestSetTitle(t *testing.T) {
+	for _, tc := range []struct{ name, in, want string }{
+		{"frontmatter and h1",
+			"---\nid: A1\ntitle: Alpha note\n---\n\n# Alpha note\n\nbody # Alpha note\n",
+			"---\nid: A1\ntitle: \"Beta: note\"\n---\n\n# Beta: note\n\nbody # Alpha note\n"},
+		{"h1 only", "# Alpha note\n\ntext\n", "# Beta: note\n\ntext\n"},
+		{"other h1 kept", "---\ntitle: Alpha note\n---\n# Something else\n", "---\ntitle: \"Beta: note\"\n---\n# Something else\n"},
+		{"crlf", "---\r\ntitle: Alpha note\r\n---\r\n# Alpha note\r\n", "---\r\ntitle: \"Beta: note\"\r\n---\r\n# Beta: note\r\n"},
+	} {
+		got, err := SetTitle([]byte(tc.in), "Alpha note", "Beta: note")
+		if err != nil || string(got) != tc.want {
+			t.Errorf("%s: got %q, %v\nwant %q", tc.name, got, err, tc.want)
+		}
+	}
+	if _, err := SetTitle([]byte("just text\n"), "file-name", "Other"); err == nil {
+		t.Error("a note whose title comes from its file name has no title line to change")
+	}
+}

@@ -32,6 +32,9 @@ func (v *Vault) writeTemplates() error {
 	})
 }
 
+// LogDir holds the daily logs, one file per day: logs/YYYY-MM-DD.md.
+const LogDir = "logs"
+
 // LogEntry is one entry for the daily log.
 type LogEntry struct {
 	Text    string
@@ -46,7 +49,7 @@ func (v *Vault) AppendLog(e LogEntry, now time.Time) (string, error) {
 		return "", fmt.Errorf("log entry is empty")
 	}
 	date := now.Format("2006-01-02")
-	rel := "logs/" + date + ".md"
+	rel := LogDir + "/" + date + ".md"
 	if !exists(v.Abs(rel)) {
 		head := fmt.Sprintf("---\ntitle: Log %s\ncreated: %s\ntags: [log]\n---\n\n# Log %s\n", date, date, date)
 		if err := v.write(rel, head); err != nil {
@@ -63,6 +66,45 @@ func (v *Vault) AppendLog(e LogEntry, now time.Time) (string, error) {
 	}
 	fmt.Fprintf(&b, "\n\n%s\n", text)
 	return rel, v.Append(rel, b.String())
+}
+
+// LoggedEntry is an entry read back from a daily log.
+type LoggedEntry struct {
+	Heading string // the "## " line without the hashes, e.g. "13:25 · [[noot]] #go"
+	Text    string // everything up to the next entry, trimmed
+}
+
+// LogEntries splits a daily log into its "## " entries. Text before the first
+// entry (frontmatter, the "# Log" title) is not part of any entry.
+func LogEntries(content string) []LoggedEntry {
+	var out []LoggedEntry
+	var text strings.Builder
+	flush := func() {
+		if len(out) > 0 {
+			out[len(out)-1].Text = strings.TrimSpace(text.String())
+		}
+		text.Reset()
+	}
+	for _, line := range strings.SplitAfter(content, "\n") {
+		if h, ok := strings.CutPrefix(strings.TrimRight(line, "\r\n"), "## "); ok {
+			flush()
+			out = append(out, LoggedEntry{Heading: strings.TrimSpace(h)})
+			continue
+		}
+		text.WriteString(line)
+	}
+	flush()
+	return out
+}
+
+// LogDate returns the day of a daily log from its vault-relative path.
+func LogDate(rel string) (time.Time, bool) {
+	name, ok := strings.CutPrefix(rel, LogDir+"/")
+	if !ok || !strings.HasSuffix(name, ".md") {
+		return time.Time{}, false
+	}
+	d, err := time.ParseInLocation("2006-01-02", strings.TrimSuffix(name, ".md"), time.Local)
+	return d, err == nil
 }
 
 // Append adds text to the end of a note, making sure it starts on a new line.

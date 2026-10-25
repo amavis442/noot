@@ -207,6 +207,40 @@ func (v *Vault) NewNote(title, dir string, tags []string, now time.Time) (string
 	return rel, v.write(rel, b.String())
 }
 
+// SetTitle changes a note's title from old to title: the frontmatter `title:`
+// line and the first H1 when it reads old. A note without either takes its
+// title from the file name, so there is nothing to change.
+func SetTitle(content []byte, old, title string) ([]byte, error) {
+	lines := strings.SplitAfter(string(content), "\n")
+	changed := false
+	inFrontmatter, h1Done := false, false
+	for i, line := range lines {
+		body := strings.TrimRight(line, "\r\n")
+		eol := line[len(body):]
+		switch {
+		case i == 0 && strings.TrimPrefix(body, "\xef\xbb\xbf") == "---":
+			inFrontmatter = true
+		case inFrontmatter && (body == "---" || body == "..."):
+			inFrontmatter = false
+		case inFrontmatter:
+			if strings.HasPrefix(body, "title:") {
+				lines[i] = "title: " + yamlString(title) + eol
+				changed = true
+			}
+		case !h1Done && strings.HasPrefix(body, "# "):
+			h1Done = true
+			if strings.TrimSpace(body[2:]) == old {
+				lines[i] = "# " + title + eol
+				changed = true
+			}
+		}
+	}
+	if !changed {
+		return nil, fmt.Errorf("no title line to change: the title %q comes from the file name, rename the file instead", old)
+	}
+	return []byte(strings.Join(lines, "")), nil
+}
+
 // Journal returns journal/YYYY-MM-DD.md, creating it when missing.
 func (v *Vault) Journal(day time.Time) (rel string, created bool, err error) {
 	date := day.Format("2006-01-02")

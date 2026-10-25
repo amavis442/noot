@@ -446,6 +446,15 @@ func (s *Store) NotesByTag(ctx context.Context, tag string) ([]domain.NoteRef, e
 		WHERE t.tag = ?1 OR t.tag LIKE ?1 || '/%' ORDER BY n.path`, tag)
 }
 
+// NotesInDir returns the notes directly inside dir, not those in its subfolders.
+func (s *Store) NotesInDir(ctx context.Context, dir string) ([]domain.NoteRef, error) {
+	prefix := strings.TrimSuffix(dir, "/") + "/"
+	return s.refs(ctx, `
+		SELECT id, path, title FROM notes
+		WHERE substr(path, 1, length(?1)) = ?1 AND instr(substr(path, length(?1) + 1), '/') = 0
+		ORDER BY path`, prefix)
+}
+
 // Count returns the number of indexed notes.
 func (s *Store) Count(ctx context.Context) (int, error) {
 	var n int

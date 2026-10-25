@@ -30,6 +30,7 @@ type Store interface {
 	Orphans(ctx context.Context) ([]domain.NoteRef, error)
 	Tags(ctx context.Context) ([]domain.TagCount, error)
 	NotesByTag(ctx context.Context, tag string) ([]domain.NoteRef, error)
+	NotesInDir(ctx context.Context, dir string) ([]domain.NoteRef, error)
 }
 
 // Service wires a vault to a store.

@@ -65,6 +65,7 @@ De eerste persoonlijke vault wordt de **default** (`*`) en de eerste agent-vault
 Speciaal voor de agent-vault zijn er een paar commando's, die je overigens in elke vault kunt gebruiken:
 
 ```bash
+noot -A context noot                                  # projectnotitie + verwante notities + recente logregels
 noot -A log -p noot -t release "v0.2.0 getagd"        # → logs/2026-10-24.md, "## 13:25 · [[noot]] #release"
 git log -1 --oneline | noot -A log -p noot             # tekst via stdin
 noot -A append --create projects/noot "- [ ] serve"    # aan een notitie toevoegen
@@ -84,6 +85,8 @@ Elk leescommando werkt de index eerst incrementeel bij (op basis van mtime en gr
 | `vault list\|add\|remove\|default\|agent` | Vaults met een naam beheren |
 | `log [-p project] [-t tag] <tekst>` | Regel met tijdstempel toevoegen aan `logs/JJJJ-MM-DD.md` (ook via stdin) |
 | `cat <note>` | Notitie printen |
+| `context <note> [--days 7] [-n 20]` | Notitie printen met de notities die ernaar linken of ernaast staan (bij `projects/x/x.md`), en de logregels van de laatste dagen die ernaar linken. Eén commando om een project op te pakken |
+| `rename <note> [nieuw-pad] [--title t] [--dry-run]` | Notitie verplaatsen en/of de titel wijzigen; alle links ernaar worden bijgewerkt in de vorm waarin ze geschreven zijn (pad, bestandsnaam of titel). Links via id of alias blijven gewoon werken, links in code blijven staan |
 | `append [--create] <note> <tekst>` | Tekst achter een notitie plakken (ook via stdin) |
 | `index [--full]` | Index bijwerken; `--full` bouwt alles opnieuw op |
 | `search <termen> [-t tag] [-n 20] [--raw] [--all]` | Full-text zoeken; met `--all` in alle vaults tegelijk. Met `--raw` gebruik je FTS5-syntax (`NEAR`, `OR`, `"exacte zin"`) |
@@ -165,6 +168,5 @@ Afhankelijkheden lopen naar binnen: `cli → app → domain`, en `storage` imple
 
 - `noot serve`: web-UI met `net/http` + htmx, met zoeken, backlinks en een graph (`/graph.json` + cytoscape.js)
 - Semantisch zoeken: embeddings via Ollama naast FTS5 (sqlite-vec of een eigen tabel)
-- `noot rename <oud> <nieuw>`: bestand hernoemen en alle `[[links]]` meteen bijwerken
 - Auto-commit: `noot sync` die `git add/commit/pull --rebase/push` uitvoert
 - Templates in `.noot/templates/` voor `new` en `today`

@@ -17,7 +17,9 @@ the owner explicitly asks for a specific change.
 
 1. Read this file.
 2. Read `memory/index.md` and follow the links that matter for the task.
-3. Check the latest logs: `noot -A cat logs/YYYY-MM-DD` for today and yesterday.
+3. Pick up the project: `noot -A context <project>` prints its main note, the notes that link to it or sit
+   next to it, and the log entries of the last 7 days that link to it (`--days`, `-n` for more).
+   Without a project, check the latest logs: `noot -A cat logs/YYYY-MM-DD` for today and yesterday.
 4. Search before asking: `noot -A search <terms>`; `noot search --all <terms>` covers every vault.
 
 ## Layout
@@ -34,6 +36,10 @@ the owner explicitly asks for a specific change.
 
 - **Log as you go**, not at the end: `noot -A log -p <project> -t <tag> "what happened, why, what's next"`.
   Keep entries short and factual: what was done, what was found, what is still open.
+  `-p` takes the name of the project's main note (the most specific one, e.g. the subproject), so
+  `noot -A context` finds the entry.
+- **Move or rename notes with `noot -A rename`**, never by hand: it rewrites every link to the note.
+  `--dry-run` shows what would change.
 - Link generously with `[[wikilinks]]` (project notes, decisions, memory files) so backlinks work.
 - Use frontmatter (`title`, `tags`, `created`) on every new note; `noot -A new "Title" -d decisions` does this for you.
 - Facts in `memory/` must be things the owner stated or that were verified, not guesses. Note the source and date.
@@ -43,10 +49,12 @@ the owner explicitly asks for a specific change.
 ## Useful commands
 
 ```bash
-noot -A log -p noot "Added named vaults; tests green"     # append to today's log
-noot -A new "Use SQLite FTS5 for search" -d decisions      # new decision note
+noot -A context noot                                        # project note + related notes + recent log
+noot -A log -p noot "Added named vaults; tests green"       # append to today's log
+noot -A new "Use SQLite FTS5 for search" -d decisions        # new decision note
 noot -A cat memory/index                                    # print a note
-noot -A append projects/noot/noot "- [ ] add noot serve"         # append to a note
+noot -A append projects/noot/noot "- [ ] add noot serve"    # append to a note
+noot -A rename old-plan projects/noot/serve-plan            # move a note, links follow
 noot -A search --json fts5                                  # machine-readable search
 noot -A backlinks noot                                      # what refers to the project
 noot -A broken                                              # links to notes that don't exist yet

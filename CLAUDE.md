@@ -13,7 +13,7 @@ My working memory is the **agent vault** (repo `amavis442/noot-claude`), managed
 
 At the start of every session:
 1. Pull the vault (`git -C <vault> pull`), then read its `AGENTS.md` and `memory/index.md`.
-2. Read `projects/noot.md` in the vault: status, gotchas, open threads for this repo.
+2. Run `noot -A context noot`: the project note (status, gotchas, open threads for this repo), related notes and recent log entries.
 3. Log while working: `noot -A log -p noot "<what, why, what's next>"`. When done: `noot -A push` (the vault may be pushed straight to `main`).
 
 Patrick's own vault (`D:\Noot\Patrick`, repo `amavis442/noot-patrick`) is **read-only** for agents unless he asks for a specific change.

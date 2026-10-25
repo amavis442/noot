@@ -51,3 +51,33 @@ func TestAppendAddsNewline(t *testing.T) {
 		t.Errorf("got %q", b)
 	}
 }
+
+func TestLogEntries(t *testing.T) {
+	content := "---\ntitle: Log 2026-10-24\n---\n\n# Log 2026-10-24\n\n" +
+		"## 13:25 · [[noot]] #go\n\nfirst\nstill first\n\n" +
+		"## 14:25\n\nsecond\n"
+	got := LogEntries(content)
+	if len(got) != 2 {
+		t.Fatalf("entries = %+v", got)
+	}
+	if got[0].Heading != "13:25 · [[noot]] #go" || got[0].Text != "first\nstill first" {
+		t.Errorf("first = %+v", got[0])
+	}
+	if got[1].Heading != "14:25" || got[1].Text != "second" {
+		t.Errorf("second = %+v", got[1])
+	}
+	if LogEntries("# Log\n\nno entries yet\n") != nil {
+		t.Error("a log without entries should give none")
+	}
+}
+
+func TestLogDate(t *testing.T) {
+	if d, ok := LogDate("logs/2026-10-24.md"); !ok || d.Format("2006-01-02") != "2026-10-24" {
+		t.Errorf("LogDate = %v, %v", d, ok)
+	}
+	for _, p := range []string{"logs/notes.md", "memory/2026-10-24.md"} {
+		if _, ok := LogDate(p); ok {
+			t.Errorf("%s is not a daily log", p)
+		}
+	}
+}

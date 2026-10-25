@@ -584,3 +584,69 @@ func TestPull(t *testing.T) {
 		t.Errorf("pull outside a repo:\n%s", r)
 	}
 }
+
+func TestContext(t *testing.T) {
+	e := newEnv(t)
+	e.ok("init", e.path("bot"), "--name", "bot", "--agent")
+	e.write("bot/projects/noot/noot.md", "---\ntitle: noot\n---\n# noot\n\nStatus: green.\n")
+	e.write("bot/projects/noot/serve-plan.md", "# Serve plan\n")
+	e.write("bot/decisions/2026-10-24-vaults.md", "# Separate vaults\n\nApplies to [[noot]].\n")
+	e.ok("-A", "log", "-p", "noot", "Template updated")
+	e.ok("-A", "log", "-p", "other", "Unrelated work")
+
+	out := e.ok("-A", "context", "noot")
+	contains(t, "context", out,
+		"==> projects/noot/noot.md (noot)", "Status: green.",
+		"==> related", "decisions/2026-10-24-vaults.md", "Applies to [[noot]].", "projects/noot/serve-plan.md",
+		"==> log, last 7 days", "· [[noot]]", "Template updated")
+	lacks(t, "context", out, "Unrelated work")
+
+	var nc struct {
+		Note    struct{ Path string }
+		Content string
+		Related []struct{ From struct{ Path string } }
+		Logs    []struct{ Path, Heading, Text string }
+	}
+	if err := json.Unmarshal([]byte(e.ok("-A", "context", "--json", "noot")), &nc); err != nil {
+		t.Fatal(err)
+	}
+	if nc.Note.Path != "projects/noot/noot.md" || len(nc.Related) != 2 || len(nc.Logs) != 1 || nc.Logs[0].Text != "Template updated" {
+		t.Errorf("context --json = %+v", nc)
+	}
+
+	if r := e.run("-A", "context", "missing"); r.code == 0 {
+		t.Errorf("context of an unknown note should fail:\n%s", r)
+	}
+}
+
+func TestRename(t *testing.T) {
+	e := newEnv(t)
+	e.ok("init", e.path("me"), "--name", "me")
+	e.write("me/projects/noot.md", "---\ntitle: noot\n---\n# noot\n\nSee [vaults](../decisions/vaults.md).\n")
+	e.write("me/decisions/vaults.md", "# Vaults\n\nFor [[projects/noot|noot]] and [main](../projects/noot.md).\n")
+
+	dry := e.ok("rename", "noot", "projects/noot/noot", "--dry-run")
+	contains(t, "dry run", dry, "would rename projects/noot.md → projects/noot/noot.md, 3 links in 2 files", "decisions/vaults.md")
+	contains(t, "dry run leaves files", e.read("me/decisions/vaults.md"), "[[projects/noot|noot]]")
+
+	contains(t, "rename", e.ok("rename", "noot", "projects/noot/noot"), "renamed projects/noot.md → projects/noot/noot.md")
+	contains(t, "rewritten", e.read("me/decisions/vaults.md"), "[[projects/noot/noot|noot]] and [main](../projects/noot/noot.md)")
+	contains(t, "moved", e.read("me/projects/noot/noot.md"), "[vaults](../../decisions/vaults.md)")
+	if out := e.ok("broken"); strings.TrimSpace(out) != "" {
+		t.Errorf("broken links after rename:\n%s", out)
+	}
+
+	var res struct {
+		To    string
+		Links int
+	}
+	if err := json.Unmarshal([]byte(e.ok("rename", "--json", "noot", "--title", "noot CLI")), &res); err != nil ||
+		res.To != "projects/noot/noot.md" || res.Links != 0 {
+		t.Errorf("rename --json = %+v, %v", res, err)
+	}
+	contains(t, "title", e.read("me/projects/noot/noot.md"), "title: noot CLI", "# noot CLI")
+
+	if r := e.run("rename", "vaults", "projects/noot/noot"); r.code == 0 {
+		t.Errorf("renaming onto an existing note should fail:\n%s", r)
+	}
+}

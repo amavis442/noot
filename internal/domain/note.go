@@ -86,3 +86,19 @@ type FileState struct {
 	ModTime int64
 	Size    int64
 }
+
+// LogExcerpt is one entry of a daily log.
+type LogExcerpt struct {
+	Path    string `json:"path"`    // the log file, e.g. "logs/2026-10-25.md"
+	Heading string `json:"heading"` // e.g. "00:47 · [[noot]]"
+	Text    string `json:"text"`
+}
+
+// NoteContext is what is worth reading before working on a note: the note
+// itself, the notes around it and the recent log entries that mention it.
+type NoteContext struct {
+	Note    NoteRef      `json:"note"`
+	Content string       `json:"content"`
+	Related []Backlink   `json:"related"` // notes linking to it, then the other notes in its folder
+	Logs    []LogExcerpt `json:"logs"`    // oldest first
+}

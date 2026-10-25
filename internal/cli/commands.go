@@ -9,6 +9,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/amavis442/noot/internal/app"
 	"github.com/amavis442/noot/internal/config"
 	"github.com/amavis442/noot/internal/domain"
 	"github.com/amavis442/noot/internal/vault"
@@ -245,6 +246,120 @@ func cmdLinks(opts *options) *cobra.Command {
 			})
 		},
 	}
+}
+
+func cmdContext(opts *options) *cobra.Command {
+	var co app.ContextOptions
+	c := &cobra.Command{
+		Use:   "context <note>",
+		Short: "Print a note with the notes around it and the recent log entries that link to it",
+		Long: `Prints everything worth reading before working on a note, in one go:
+the note itself, the notes that link to it (daily logs excluded), the other
+notes in its folder when it is the folder's main note (projects/x/x.md), and
+the entries of recent daily logs that link to it.`,
+		Example: `  noot -A context trading212-go-api
+  noot -A context noot --days 14 -n 50
+  noot -A context --json noot`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return run(cmd, opts, true, func(e *env) error {
+				co.Now = time.Now()
+				nc, err := e.svc.Context(e.ctx, args[0], co)
+				if err != nil {
+					return err
+				}
+				if opts.asJSON {
+					return e.json(nc)
+				}
+				printContext(e, nc, co.Days)
+				return nil
+			})
+		},
+	}
+	c.Flags().IntVar(&co.Days, "days", 7, "log entries of the last N days (0 = all)")
+	c.Flags().IntVarP(&co.Limit, "limit", "n", 20, "at most N log entries, the newest (0 = all)")
+	return c
+}
+
+func printContext(e *env, nc *domain.NoteContext, days int) {
+	fmt.Fprintf(e.out, "==> %s (%s)\n%s", nc.Note.Path, nc.Note.Title, nc.Content)
+	if !strings.HasSuffix(nc.Content, "\n") {
+		fmt.Fprintln(e.out)
+	}
+
+	fmt.Fprintln(e.out, "\n==> related")
+	if len(nc.Related) == 0 {
+		fmt.Fprintln(e.out, "  (none)")
+	}
+	for _, r := range nc.Related {
+		fmt.Fprintf(e.out, "  %s  —  %s\n", r.From.Path, r.From.Title)
+		if r.Context != "" {
+			fmt.Fprintf(e.out, "      %s\n", r.Context)
+		}
+	}
+
+	if days > 0 {
+		fmt.Fprintf(e.out, "\n==> log, last %d days\n", days)
+	} else {
+		fmt.Fprintln(e.out, "\n==> log")
+	}
+	if len(nc.Logs) == 0 {
+		fmt.Fprintln(e.out, "  (none)")
+	}
+	for _, l := range nc.Logs {
+		day := l.Path
+		if d, ok := vault.LogDate(l.Path); ok {
+			day = d.Format("2006-01-02")
+		}
+		fmt.Fprintf(e.out, "-- %s %s\n%s\n", day, l.Heading, l.Text)
+	}
+}
+
+func cmdRename(opts *options) *cobra.Command {
+	var ro app.RenameOptions
+	c := &cobra.Command{
+		Use:   "rename <note> [new-path]",
+		Short: "Move a note and/or change its title, rewriting every link to it",
+		Long: `Moves a note to new-path (vault-relative, ".md" optional; a bare name stays
+in the same folder) and/or changes its title with --title. Every [[wikilink]]
+and Markdown link that pointed to the note is rewritten in the form it was
+written in (path, file name or title); links by id or alias keep working and
+are left alone. The note's own relative Markdown links follow it to its new
+folder. Links inside code are not touched.`,
+		Example: `  noot -A rename noot projects/noot/noot
+  noot rename "Clean architecture" --title "Clean architecture in Go"
+  noot rename old-name new-name --dry-run`,
+		Args: cobra.RangeArgs(1, 2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 2 {
+				ro.To = args[1]
+			}
+			return run(cmd, opts, true, func(e *env) error {
+				res, err := e.svc.Rename(e.ctx, args[0], ro)
+				if err != nil {
+					return err
+				}
+				for _, b := range res.Broken {
+					fmt.Fprintf(cmd.ErrOrStderr(), "warning: broken link %s → %s\n", b.From.Path, b.Target)
+				}
+				if opts.asJSON {
+					return e.json(res)
+				}
+				verb := "renamed"
+				if res.DryRun {
+					verb = "would rename"
+				}
+				fmt.Fprintf(e.out, "%s %s → %s, %d links in %d files\n", verb, res.From, res.To, res.Links, len(res.Changed))
+				for _, p := range res.Changed {
+					fmt.Fprintf(e.out, "  %s\n", p)
+				}
+				return nil
+			})
+		},
+	}
+	c.Flags().StringVar(&ro.Title, "title", "", "new title (frontmatter title and the matching H1)")
+	c.Flags().BoolVarP(&ro.DryRun, "dry-run", "n", false, "show what would change without writing")
+	return c
 }
 
 func cmdBroken(opts *options) *cobra.Command {
