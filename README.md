@@ -101,6 +101,7 @@ Elk leescommando werkt de index eerst incrementeel bij (op basis van mtime en gr
 | `watch` | Index live bijhouden (Ctrl+C om te stoppen) |
 | `push [-m melding] [--no-pull]` | Alles committen en pushen: `git add -A`, commit, `pull --rebase`, `push` |
 | `pull` | Wijzigingen van elders binnenhalen (`pull --rebase --autostash`) en de index bijwerken |
+| `status` | Laten zien wat de volgende `push` meeneemt: gewijzigde bestanden (A/M/D) en commits die nog niet gepusht zijn. Kijkt alleen, zonder netwerk |
 
 Overal kun je `--json` toevoegen voor scripts, fzf of een AI-agent. Bijvoorbeeld:
 
@@ -118,6 +119,7 @@ Een vault is gewoon een git-repo. `noot push` doet de hele ronde in één keer:
 noot push                     # commit "noot: 3f9a1c2e4b7d" + lijst met gewijzigde bestanden, pull --rebase, push
 noot push -m "Weekly review"  # eigen melding
 noot -A push                  # de agent-vault
+noot status                   # wat gaat er met de volgende push mee?
 noot pull                     # binnenhalen wat elders is gepusht
 ```
 

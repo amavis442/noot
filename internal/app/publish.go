@@ -5,13 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/amavis442/noot/internal/vault"
 )
 
-// Git is the version-control port used by Publish. internal/vcs/git implements it.
+// Git is the version-control port used by Publish, Pull and Status. internal/vcs/git implements it.
 type Git interface {
 	IsRepo(ctx context.Context) (bool, error)
 	AddAll(ctx context.Context) error
 	StagedChanges(ctx context.Context) ([]string, error) // "M\tpath" lines, as git diff --name-status
+	Changes(ctx context.Context) ([]string, error)       // same format, for the work tree, without staging
 	WriteTree(ctx context.Context) (string, error)       // hash of the staged tree
 	Commit(ctx context.Context, subject, body string) (string, error)
 	HasUpstream(ctx context.Context) (bool, error)
@@ -164,6 +167,57 @@ func (s *Service) Pull(ctx context.Context) (PullResult, error) {
 	}
 	res.Changed = res.From != res.To
 	return res, nil
+}
+
+// FileChange is one file the next push will commit.
+type FileChange struct {
+	Status string `json:"status"` // A added, M modified, D deleted
+	Path   string `json:"path"`
+}
+
+// StatusResult is what the next push would do.
+type StatusResult struct {
+	Changes  []FileChange `json:"changes"`  // not yet committed
+	Ahead    int          `json:"ahead"`    // committed but not pushed; 0 without upstream
+	Upstream bool         `json:"upstream"` // the branch tracks a remote branch
+	Remote   bool         `json:"remote"`   // an origin remote exists
+}
+
+// Status reports what the next Publish would commit and push. It only looks:
+// nothing is staged and the remote is not contacted.
+func (s *Service) Status(ctx context.Context) (StatusResult, error) {
+	var res StatusResult
+	if s.Git == nil {
+		return res, errors.New("no git backend configured")
+	}
+	ok, err := s.Git.IsRepo(ctx)
+	if err != nil {
+		return res, err
+	}
+	if !ok {
+		return res, fmt.Errorf("%s is not a git repository", s.Vault.Root)
+	}
+	lines, err := s.Git.Changes(ctx)
+	if err != nil {
+		return res, err
+	}
+	for _, l := range lines {
+		status, p, _ := strings.Cut(l, "\t")
+		if strings.HasPrefix(p, vault.MetaDir+"/") { // the index, when .gitignore lacks it; Publish adds it there
+			continue
+		}
+		res.Changes = append(res.Changes, FileChange{Status: status, Path: p})
+	}
+	if res.Upstream, err = s.Git.HasUpstream(ctx); err != nil {
+		return res, err
+	}
+	if res.Upstream {
+		if res.Ahead, err = s.Git.Ahead(ctx); err != nil {
+			return res, err
+		}
+	}
+	res.Remote, err = s.Git.HasRemote(ctx, defaultRemote)
+	return res, err
 }
 
 func commitBody(changes []string) string {

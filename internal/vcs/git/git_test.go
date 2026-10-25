@@ -308,3 +308,33 @@ func TestHeadAndPullWithLocalChanges(t *testing.T) {
 		t.Errorf("local edit lost: %q", b)
 	}
 }
+
+func TestChangesDoesNotStage(t *testing.T) {
+	ctx := context.Background()
+	work, _ := repoWithRemote(t)
+	g := New(work)
+	write(t, work, "keep.md", "# Keep")
+	write(t, work, "gone.md", "# Gone")
+	write(t, work, "edit.md", "# Edit")
+	_ = g.AddAll(ctx)
+	if _, err := g.Commit(ctx, "first", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	write(t, work, "edit.md", "# Edited")
+	write(t, work, "sub dir/fresh é.md", "# Fresh")
+	if err := os.Remove(filepath.Join(work, "gone.md")); err != nil {
+		t.Fatal(err)
+	}
+	got, err := g.Changes(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "M\tedit.md,D\tgone.md,A\tsub dir/fresh é.md"
+	if strings.Join(got, ",") != want {
+		t.Errorf("changes = %q, want %q", got, want)
+	}
+	if staged, _ := g.StagedChanges(ctx); len(staged) != 0 {
+		t.Errorf("Changes must not stage anything: %v", staged)
+	}
+}

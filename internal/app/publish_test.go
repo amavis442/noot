@@ -17,6 +17,7 @@ import (
 type fakeGit struct {
 	repo     bool
 	staged   []string
+	changes  []string
 	tree     string
 	upstream bool
 	remote   bool
@@ -38,6 +39,10 @@ func (f *fakeGit) AddAll(context.Context) error         { f.record("add"); retur
 func (f *fakeGit) StagedChanges(context.Context) ([]string, error) {
 	f.record("staged")
 	return f.staged, nil
+}
+func (f *fakeGit) Changes(context.Context) ([]string, error) {
+	f.record("changes")
+	return f.changes, nil
 }
 func (f *fakeGit) WriteTree(context.Context) (string, error) {
 	f.record("write-tree")
@@ -246,5 +251,37 @@ func TestPullFailureIsReported(t *testing.T) {
 	g := &fakeGit{repo: true, upstream: true, head: "aaa", pullErr: errors.New("conflict in a.md")}
 	if _, err := publishSetup(t, g).Pull(context.Background()); err == nil || !strings.Contains(err.Error(), "conflict in a.md") {
 		t.Errorf("err = %v", err)
+	}
+}
+
+func TestStatusListsChangesAndUnpushedCommits(t *testing.T) {
+	g := &fakeGit{repo: true, upstream: true, remote: true, ahead: 1,
+		changes: []string{"M	logs/2026-10-25.md", "A	projects/noot/plan.md"}}
+	st, err := publishSetup(t, g).Status(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []app.FileChange{{Status: "M", Path: "logs/2026-10-25.md"}, {Status: "A", Path: "projects/noot/plan.md"}}
+	if !slices.Equal(st.Changes, want) || st.Ahead != 1 || !st.Upstream || !st.Remote {
+		t.Errorf("status = %+v", st)
+	}
+	for _, c := range []string{"add", "commit", "pull", "push"} {
+		if slices.Contains(g.calls, c) {
+			t.Errorf("status must only look, but called %q: %v", c, g.calls)
+		}
+	}
+}
+
+func TestStatusWithoutUpstream(t *testing.T) {
+	g := &fakeGit{repo: true, remote: true}
+	st, err := publishSetup(t, g).Status(context.Background())
+	if err != nil || st.Upstream || !st.Remote || st.Ahead != 0 || slices.Contains(g.calls, "ahead") {
+		t.Errorf("status = %+v, %v, calls %v", st, err, g.calls)
+	}
+}
+
+func TestStatusRequiresRepo(t *testing.T) {
+	if _, err := publishSetup(t, &fakeGit{}).Status(context.Background()); err == nil {
+		t.Error("expected an error outside a git repository")
 	}
 }

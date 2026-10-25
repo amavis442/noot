@@ -125,6 +125,7 @@ Vault selection, first match wins:
 		cmdOpen(opts),
 		cmdPush(opts),
 		cmdPull(opts),
+		cmdStatus(opts),
 		cmdWatch(opts),
 	)
 	return root

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -66,6 +67,33 @@ func (r *Repo) StagedChanges(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	return strings.Split(out, "\n"), nil
+}
+
+// Changes lists every change in the work tree against HEAD, staged or not
+// and untracked files included, as "<A|M|D>\t<path>" sorted by path. It only
+// looks: nothing is staged.
+func (r *Repo) Changes(ctx context.Context) ([]string, error) {
+	out, err := r.run(ctx, "-c", "core.quotepath=off", "status", "--porcelain", "--untracked-files=all", "--no-renames")
+	if err != nil || out == "" {
+		return nil, err
+	}
+	var changes []string
+	for _, line := range strings.Split(out, "\n") {
+		if len(line) < 4 {
+			continue
+		}
+		xy, p := line[:2], line[3:]
+		code := "M"
+		switch {
+		case xy == "??" || strings.Contains(xy, "A"):
+			code = "A"
+		case strings.Contains(xy, "D"):
+			code = "D"
+		}
+		changes = append(changes, code+"\t"+strings.Trim(p, `"`))
+	}
+	sort.Slice(changes, func(i, j int) bool { return changes[i][2:] < changes[j][2:] })
+	return changes, nil
 }
 
 // WriteTree returns the hash of the staged tree.

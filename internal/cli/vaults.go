@@ -324,6 +324,62 @@ updates the index. Uncommitted local edits are kept.`,
 	}
 }
 
+func cmdStatus(opts *options) *cobra.Command {
+	return &cobra.Command{
+		Use:   "status",
+		Short: "Show what the next noot push would commit and push (no network)",
+		Long: `Lists the files the next noot push would commit (A added, M modified,
+D deleted) and the commits that are made but not pushed yet. It only looks:
+nothing is staged and the remote is not contacted, so "not pushed yet" is
+measured against what noot last saw of the remote.`,
+		Example: `  noot status
+  noot -A status
+  noot -A status --json`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return run(cmd, opts, false, func(e *env) error {
+				e.svc.Git = git.New(e.svc.Vault.Root)
+				st, err := e.svc.Status(e.ctx)
+				if err != nil {
+					return err
+				}
+				if opts.asJSON {
+					return e.json(st)
+				}
+				printStatus(e, st)
+				return nil
+			})
+		},
+	}
+}
+
+func printStatus(e *env, st app.StatusResult) {
+	if len(st.Changes) > 0 {
+		fmt.Fprintf(e.out, "%d %s to commit:\n", len(st.Changes), plural(len(st.Changes), "change", "changes"))
+		for _, c := range st.Changes {
+			fmt.Fprintf(e.out, "  %s  %s\n", c.Status, c.Path)
+		}
+	}
+	if st.Ahead > 0 {
+		fmt.Fprintf(e.out, "%d %s not pushed yet\n", st.Ahead, plural(st.Ahead, "commit", "commits"))
+	}
+	switch {
+	case !st.Remote && !st.Upstream:
+		fmt.Fprintln(e.out, "no remote: the next push only commits locally")
+	case !st.Upstream:
+		fmt.Fprintln(e.out, "no upstream yet: the next push sets it (origin)")
+	case len(st.Changes) == 0 && st.Ahead == 0:
+		fmt.Fprintln(e.out, "nothing to push")
+	}
+}
+
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
+}
+
 func short(hash string) string {
 	if len(hash) > 7 {
 		return hash[:7]

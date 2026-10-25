@@ -650,3 +650,40 @@ func TestRename(t *testing.T) {
 		t.Errorf("renaming onto an existing note should fail:\n%s", r)
 	}
 }
+
+func TestStatus(t *testing.T) {
+	e := newEnv(t)
+	e.ok("init", e.path("v"), "--name", "v")
+	e.ok("init", e.path("bot"), "--name", "bot", "--agent")
+	e.gitRepo(e.path("v"))
+	e.gitRepo(e.path("bot"))
+
+	e.write("v/zettels/a.md", "# A")
+	out := e.ok("-V", "v", "status")
+	contains(t, "before first push", out, "A  zettels/a.md", "no upstream yet")
+	lacks(t, "index is never pushed", out, ".noot")
+
+	e.ok("-V", "v", "push")
+	contains(t, "after push", e.ok("-V", "v", "status"), "nothing to push")
+
+	e.write("v/zettels/a.md", "# A changed")
+	e.git(e.path("v"), "commit", "-q", "-am", "local only")
+	e.write("v/zettels/b.md", "# B")
+	contains(t, "unpushed commit", e.ok("-V", "v", "status"), "A  zettels/b.md", "1 commit not pushed yet")
+
+	// The agent vault, and --json.
+	e.write("bot/logs/2026-10-25.md", "# Log")
+	contains(t, "agent vault", e.ok("-A", "status"), "logs/2026-10-25.md")
+	var st struct {
+		Changes []struct{ Status, Path string }
+		Ahead   int
+	}
+	if err := json.Unmarshal([]byte(e.ok("-A", "status", "--json")), &st); err != nil {
+		t.Fatal(err)
+	}
+	var paths []string
+	for _, c := range st.Changes {
+		paths = append(paths, c.Status+" "+c.Path)
+	}
+	contains(t, "status --json", strings.Join(paths, "\n"), "A logs/2026-10-25.md", "A AGENTS.md")
+}

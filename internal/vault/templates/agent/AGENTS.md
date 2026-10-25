@@ -55,6 +55,7 @@ noot -A new "Use SQLite FTS5 for search" -d decisions        # new decision note
 noot -A cat memory/index                                    # print a note
 noot -A append projects/noot/noot "- [ ] add noot serve"    # append to a note
 noot -A rename old-plan projects/noot/serve-plan            # move a note, links follow
+noot -A status                                              # what the next push takes along
 noot -A search --json fts5                                  # machine-readable search
 noot -A backlinks noot                                      # what refers to the project
 noot -A broken                                              # links to notes that don't exist yet
