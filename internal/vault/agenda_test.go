@@ -18,9 +18,11 @@ func TestAgenda(t *testing.T) {
 	b, _ := os.ReadFile(v.Abs(rel))
 	s := string(b)
 	want := "---\ntitle: Agenda 2026-W44\ncreated: 2026-10-26\ntags: [agenda]\n---\n\n" +
-		"# Week 44, 2026\n\n" +
-		"## Monday 26 October\n\n## Tuesday 27 October\n\n## Wednesday 28 October\n\n## Thursday 29 October\n\n" +
-		"## Friday 30 October\n\n## Saturday 31 October\n\n## Sunday 1 November\n\n"
+		"# Week 44, 2026\n\n"
+	for _, d := range []string{"Monday 26 October", "Tuesday 27 October", "Wednesday 28 October", "Thursday 29 October",
+		"Friday 30 October", "Saturday 31 October", "Sunday 1 November"} {
+		want += "## " + d + "\n\n### Planned\n\n### Doing\n\n### Done\n\n"
+	}
 	if s != want {
 		t.Errorf("agenda =\n%q\nwant\n%q", s, want)
 	}

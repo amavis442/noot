@@ -98,7 +98,7 @@ Elk leescommando werkt de index eerst incrementeel bij (op basis van mtime en gr
 | `tags [tag]` | Tag-overzicht met aantallen, of de notities met een tag (`go` matcht ook `go/generics`) |
 | `new <titel> [-d zettels] [-t tag] [-o]` | Nieuwe notitie met frontmatter |
 | `today [--offset -1] [--print]` | Dagnotitie openen of aanmaken |
-| `agenda [--offset 1] [--print]` | Weekagenda openen of aanmaken: `agenda/JJJJ-Www.md` (ISO-week, maandag t/m zondag) met een kop per dag; `--offset` telt in weken |
+| `agenda [--offset 1] [--print]` | Weekagenda openen of aanmaken: `agenda/JJJJ-Www.md` (ISO-week, maandag t/m zondag) met een kop per dag en daaronder Planned, Doing en Done; `--offset` telt in weken |
 | `open <note> [--print]` | Notitie openen via id, pad, bestandsnaam, titel of alias |
 | `watch` | Index live bijhouden (Ctrl+C om te stoppen) |
 | `push [-m melding] [--no-pull]` | Alles committen en pushen: `git add -A`, commit, `pull --rebase`, `push` |

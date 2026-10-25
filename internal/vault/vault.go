@@ -253,8 +253,12 @@ func (v *Vault) Journal(day time.Time) (rel string, created bool, err error) {
 	return rel, true, v.write(rel, content)
 }
 
+// agendaSections are the subheadings of every day in a weekly agenda.
+var agendaSections = []string{"Planned", "Doing", "Done"}
+
 // Agenda returns agenda/YYYY-Www.md for the ISO week (Monday to Sunday) that
-// day falls in, creating it with a heading per day when missing.
+// day falls in, creating it when missing with a heading per day and the
+// agendaSections under each.
 func (v *Vault) Agenda(day time.Time) (rel string, created bool, err error) {
 	year, week := day.ISOWeek()
 	rel = fmt.Sprintf("agenda/%d-W%02d.md", year, week)
@@ -270,6 +274,9 @@ func (v *Vault) Agenda(day time.Time) (rel string, created bool, err error) {
 	fmt.Fprintf(&b, "# Week %d, %d\n\n", week, year)
 	for i := range 7 {
 		fmt.Fprintf(&b, "## %s\n\n", monday.AddDate(0, 0, i).Format("Monday 2 January"))
+		for _, s := range agendaSections {
+			fmt.Fprintf(&b, "### %s\n\n", s)
+		}
 	}
 	return rel, true, v.write(rel, b.String())
 }
