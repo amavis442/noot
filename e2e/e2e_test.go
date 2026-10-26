@@ -705,3 +705,50 @@ func TestAgenda(t *testing.T) {
 	}
 	contains(t, "agenda is a note", e.ok("tags", "agenda"), rel)
 }
+
+func TestReminders(t *testing.T) {
+	e := newEnv(t)
+	e.ok("init", e.path("me"), "--name", "me")
+
+	contains(t, "empty list", e.ok("reminder"), "no open reminders")
+	contains(t, "add", e.ok("reminder", "Call the dentist", "--due", "2020-01-01"), "added 1: Call the dentist")
+	contains(t, "add via subcommand", e.ok("rem", "add", "Buy", "milk"), "added 2: Buy milk")
+	contains(t, "add from stdin", e.runIn("Water the plants\n", "reminder", "add").stdout, "added 3: Water the plants")
+	contains(t, "reminders.md", e.read("me/reminders.md"), "tags: [reminders]",
+		"- [ ] Call the dentist · due 2020-01-01\n- [ ] Buy milk\n- [ ] Water the plants\n")
+
+	list := e.ok("reminder", "list")
+	contains(t, "list", list, "1  [ ] Call the dentist  due 2020-01-01 (overdue)", "2  [ ] Buy milk", "3  [ ] Water the plants")
+
+	contains(t, "done", e.ok("reminder", "done", "1", "#3"), "done 1: Call the dentist", "done 3: Water the plants")
+	list = e.ok("reminder")
+	contains(t, "open after done", list, "Buy milk")
+	lacks(t, "open after done", list, "dentist", "plants")
+	contains(t, "--all", e.ok("reminder", "--all"), "[x] Call the dentist", "done "+time.Now().Format("2006-01-02"))
+	if r := e.run("reminder", "done", "1"); r.code == 0 || !strings.Contains(r.stderr, "already done") {
+		t.Errorf("done twice:\n%s", r)
+	}
+	if r := e.run("reminder", "done", "x"); r.code == 0 {
+		t.Errorf("done x should fail:\n%s", r)
+	}
+
+	tomorrow := time.Now().AddDate(0, 0, 1)
+	y, w := tomorrow.ISOWeek()
+	agenda := fmt.Sprintf("agenda/%d-W%02d.md", y, w)
+	contains(t, "plan", e.ok("reminder", "plan", "2", "tomorrow"), "planned 2 on "+tomorrow.Format("Monday 2 January"), agenda)
+	contains(t, "agenda", e.read("me/"+agenda), "## "+tomorrow.Format("Monday 2 January")+"\n\n### Planned\n\n- [ ] Buy milk ([[reminders]])\n\n### Doing")
+	contains(t, "planned in list", e.ok("reminder"), "planned "+tomorrow.Format("2006-01-02"))
+	contains(t, "agenda links back", e.ok("backlinks", "reminders"), agenda)
+
+	e.ok("reminder", "done", "2")
+	contains(t, "agenda ticked", e.read("me/"+agenda), "- [x] Buy milk ([[reminders]])")
+
+	var rs []struct {
+		N    int    `json:"n"`
+		Text string `json:"text"`
+		Done bool   `json:"done"`
+	}
+	if err := json.Unmarshal([]byte(e.ok("reminder", "--all", "--json")), &rs); err != nil || len(rs) != 3 || !rs[1].Done {
+		t.Errorf("reminder --json = %+v, %v", rs, err)
+	}
+}

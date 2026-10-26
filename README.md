@@ -34,6 +34,7 @@ noot init D:\Noot\Patrick         # maakt journal/ zettels/ projects/ attachment
 cd D:\Noot\Patrick
 noot today                        # opent journal/2026-10-24.md in $EDITOR
 noot agenda                       # opent agenda/2026-W43.md, de agenda van deze week
+noot reminder "Tandarts bellen" --due vrijdag
 noot new "Clean architecture in Go" -t go -t architectuur
 noot search clean arch            # prefix-match, accenten worden genegeerd (cafe = café)
 noot backlinks "clean architecture in go"
@@ -99,6 +100,9 @@ Elk leescommando werkt de index eerst incrementeel bij (op basis van mtime en gr
 | `new <titel> [-d zettels] [-t tag] [-o]` | Nieuwe notitie met frontmatter |
 | `today [--offset -1] [--print]` | Dagnotitie openen of aanmaken |
 | `agenda [--offset 1] [--print]` | Weekagenda openen of aanmaken: `agenda/JJJJ-Www.md` (ISO-week, maandag t/m zondag) met een kop per dag en daaronder Planned, Doing en Done; `--offset` telt in weken |
+| `reminder [tekst] [--due dag] [--all]` (`rem`) | Met tekst: reminder toevoegen aan `reminders.md`. Zonder tekst: de open reminders, vroegste datum eerst (`--all` toont ook de afgeronde) |
+| `reminder done <n>...` | Reminders afvinken; is de reminder ingepland, dan wordt hij ook in de agenda afgevinkt |
+| `reminder plan <n> <dag>` | Reminder onder Planned van die dag in de weekagenda zetten (de agenda wordt zo nodig aangemaakt) |
 | `open <note> [--print]` | Notitie openen via id, pad, bestandsnaam, titel of alias |
 | `watch` | Index live bijhouden (Ctrl+C om te stoppen) |
 | `push [-m melding] [--no-pull]` | Alles committen en pushen: `git add -A`, commit, `pull --rebase`, `push` |
