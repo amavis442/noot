@@ -30,7 +30,7 @@ De eerste keer dat noot draait, compileert hij SQLite (ongeveer 1 seconde) en be
 ## Snel starten
 
 ```bash
-noot init D:\Noot\Patrick         # maakt journal/ zettels/ projects/ attachments/ .noot/ + .gitignore
+noot init D:\Noot\Patrick         # maakt journal/ zettels/ projects/ attachments/ .noot/ + .gitignore, geregistreerd als "patrick"
 cd D:\Noot\Patrick
 noot today                        # opent journal/2026-10-24.md in $EDITOR
 noot agenda                       # opent agenda/2026-W43.md, de agenda van deze week
@@ -51,6 +51,8 @@ noot vault list
 #   A claude   agent     D:\Noot\Claude
 #   * patrick  personal  D:\Noot\Patrick
 ```
+
+`init` registreert een vault altijd. Zonder `--name` wordt de mapnaam de naam (`D:\Noot\Claude` wordt `claude`), en een map die al geregistreerd is, houdt zijn naam. Wordt een naam al gebruikt voor een andere map, dan stopt `init` voordat er iets wordt aangemaakt. Kies dan zelf een naam met `--name`. Zo overschrijft een vault nooit ongemerkt een andere.
 
 Je kunt alle vaults onder één map zetten, bijvoorbeeld `D:\Noot\`. Een vault slaat submappen met een eigen `.noot/` altijd over, dus vaults kunnen niet per ongeluk elkaars notities indexeren.
 
@@ -83,7 +85,7 @@ Elk leescommando werkt de index eerst incrementeel bij (op basis van mtime en gr
 
 | Commando | Wat |
 |---|---|
-| `init [dir] [--name n] [--agent]` | Maakt de mappenstructuur, `.noot/` en `.gitignore`; met `--name` wordt de vault ook geregistreerd |
+| `init [dir] [--name n] [--agent]` | Maakt de mappenstructuur, `.noot/` en `.gitignore` en registreert de vault, onder `--name` of anders onder de mapnaam |
 | `vault list\|add\|remove\|default\|agent` | Vaults met een naam beheren |
 | `log [-p project] [-t tag] <tekst>` | Regel met tijdstempel toevoegen aan `logs/JJJJ-MM-DD.md` (ook via stdin) |
 | `cat <note>` | Notitie printen |

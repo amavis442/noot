@@ -118,6 +118,34 @@ func (c *Config) Add(name, path string, kind Kind) error {
 	return nil
 }
 
+// Register registers a vault for init, which never leaves a vault anonymous
+// and never overwrites another one. Without a name, a folder that is already
+// registered keeps its name and a new one gets fallback (its folder name).
+// A name taken by another folder, or a second name for a registered folder,
+// is an error.
+func (c *Config) Register(name, fallback, path string, kind Kind) (string, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	current := c.NameFor(abs)
+	switch {
+	case name == "" && current != "":
+		name = current
+	case name == "":
+		name = fallback
+	case current != "" && current != name:
+		return "", fmt.Errorf("%s is already registered as %q (noot vault remove %s first to rename it)", abs, current, current)
+	}
+	if name == "" {
+		return "", fmt.Errorf("no name for the vault in %s: use --name", abs)
+	}
+	if v, ok := c.Vaults[name]; ok && !samePath(v.Path, abs) {
+		return "", fmt.Errorf("vault name %q is already used for %s: pick another with --name", name, v.Path)
+	}
+	return name, c.Add(name, abs, kind)
+}
+
 // Remove unregisters a vault (files are untouched).
 func (c *Config) Remove(name string) error {
 	if _, ok := c.Vaults[name]; !ok {

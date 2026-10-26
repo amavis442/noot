@@ -178,6 +178,31 @@ func TestInitAndRegisterTwoVaults(t *testing.T) {
 	}
 }
 
+func TestInitAlwaysRegisters(t *testing.T) {
+	e := newEnv(t)
+	contains(t, "init without --name", e.ok("init", e.path("home/My Notes")), `"my-notes"`)
+	contains(t, "init --agent without --name", e.ok("init", e.path("home/Claude"), "--agent"), `"claude"`)
+	contains(t, "vault list", e.ok("vault", "list"), "* my-notes", "A claude")
+
+	// A vault in cwd, and re-running init keeps the name.
+	e.cwd = e.path("home/Claude")
+	contains(t, "init in cwd", e.ok("init", "--agent"), `"claude"`)
+
+	// The same folder name elsewhere must not overwrite the first vault, and
+	// nothing is created for it.
+	e.cwd = e.root
+	r := e.run("init", e.path("work/Claude"), "--agent")
+	if r.code == 0 || !strings.Contains(r.stderr, `"claude" is already used`) {
+		t.Errorf("taken name:\n%s", r)
+	}
+	if _, err := os.Stat(e.path("work/Claude")); err == nil {
+		t.Error("init created the folder although the name was taken")
+	}
+	contains(t, "with --name it works", e.ok("init", e.path("work/Claude"), "--agent", "--name", "work-claude"), `"work-claude"`)
+	list := e.ok("vault", "list")
+	contains(t, "both registered", list, "A claude", e.path("home/Claude"), "work-claude", e.path("work/Claude"))
+}
+
 func TestVaultManagement(t *testing.T) {
 	e := newEnv(t)
 	e.ok("init", e.path("a"))

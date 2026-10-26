@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -21,19 +22,21 @@ func cmdInit(opts *options) *cobra.Command {
 	var agent bool
 	c := &cobra.Command{
 		Use:   "init [dir]",
-		Short: "Create a vault (folder layout, .noot/, .gitignore) and optionally register it",
-		Example: `  noot init D:\Noot\Patrick --name patrick
-  noot init D:\Noot\Claude --name claude --agent`,
+		Short: "Create a vault (folder layout, .noot/, .gitignore) and register it",
+		Long: `Creates the folder layout and registers the vault, so it can be selected by
+name (-V) and, for the first personal and agent vault, as the default and -A.
+Without --name the vault is registered under its folder name. A name that is
+already used for another folder is refused before anything is created.`,
+		Example: `  noot init D:\Noot\Patrick              # registered as "patrick"
+  noot init ~/notes/work --name work
+  noot init D:\Noot\Claude --agent`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dir := "."
 			if len(args) == 1 {
 				dir = args[0]
 			}
-			if err := os.MkdirAll(dir, 0o755); err != nil {
-				return err
-			}
-			v, err := vault.Open(dir)
+			abs, err := filepath.Abs(dir)
 			if err != nil {
 				return err
 			}
@@ -41,33 +44,35 @@ func cmdInit(opts *options) *cobra.Command {
 			if agent {
 				kind = config.KindAgent
 			}
+			cfg, err := config.Load()
+			if err != nil {
+				return err
+			}
+			name, err := cfg.Register(name, vault.Slugify(filepath.Base(abs)), abs, kind)
+			if err != nil {
+				return err
+			}
+			if err := os.MkdirAll(abs, 0o755); err != nil {
+				return err
+			}
+			v, err := vault.Open(abs)
+			if err != nil {
+				return err
+			}
 			if err := v.Init(kind); err != nil {
 				return err
 			}
-			if name != "" {
-				cfg, err := config.Load()
-				if err != nil {
-					return err
-				}
-				if err := cfg.Add(name, v.Root, kind); err != nil {
-					return err
-				}
-				if err := cfg.Save(); err != nil {
-					return err
-				}
+			if err := cfg.Save(); err != nil {
+				return err
 			}
 			return runAt(cmd, opts, v.Root, name, true, func(e *env) error {
 				n, _ := e.store.Count(e.ctx)
-				label := v.Root
-				if name != "" {
-					label = fmt.Sprintf("%q (%s)", name, v.Root)
-				}
-				fmt.Fprintf(e.out, "%s vault ready: %s, %d notes indexed\n", kind, label, n)
+				fmt.Fprintf(e.out, "%s vault ready: %q (%s), %d notes indexed\n", kind, name, v.Root, n)
 				return nil
 			})
 		},
 	}
-	c.Flags().StringVar(&name, "name", "", "register the vault under this name")
+	c.Flags().StringVar(&name, "name", "", "register the vault under this name (default: the folder name)")
 	c.Flags().BoolVar(&agent, "agent", false, "agent layout: AGENTS.md, logs/, memory/, decisions/, projects/, scratch/")
 	return c
 }
