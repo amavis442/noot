@@ -4,19 +4,18 @@ Instructions for Claude sessions in this repo, both local (Windows/Linux) and cl
 
 ## Agent memory: read this first
 
-My working memory is the **agent vault** (repo `amavis442/noot-claude`), managed with noot itself.
+My working memory is the **agent vault**, managed with noot itself. Patrick uses noot on several machines (home and work), each with **its own vaults that must not mix**. So never assume a path, repo or machine: the vaults are whatever is registered on the machine you run on.
 
-| Session | Where the vault is | How to use it |
-|---|---|---|
-| Local on Patrick's PC | `D:\Noot\Claude` (registered as `claude`, `-A`) | `noot -A …`; commit and push from that folder |
-| Cloud | not present | `git clone https://github.com/amavis442/noot-claude ~/noot-claude`, then `noot vault add claude ~/noot-claude --kind agent` |
+- `noot vault list` shows them: `A` is the agent vault (use `noot -A …`), `*` is Patrick's own vault.
+- Never write into, clone, pull or push another machine's vault, and never copy notes from one machine's vault into another's.
+- No agent vault registered (e.g. a cloud session): skip the vault steps below unless Patrick names one.
 
 At the start of every session:
-1. Pull the vault (`git -C <vault> pull`), then read its `AGENTS.md` and `memory/index.md`.
+1. If the agent vault is a git repo with a remote, `noot -A pull`. Then read its `AGENTS.md` and `memory/index.md`.
 2. Run `noot -A context noot`: the project note (status, gotchas, open threads for this repo), related notes and recent log entries.
-3. Log while working: `noot -A log -p noot "<what, why, what's next>"`. When done: `noot -A push` (the vault may be pushed straight to `main`).
+3. Log while working: `noot -A log -p noot "<what, why, what's next>"`. When done and the vault has a remote: `noot -A push` (the vault may be pushed straight to `main`).
 
-Patrick's own vault (`D:\Noot\Patrick`, repo `amavis442/noot-patrick`) is **read-only** for agents unless he asks for a specific change.
+Patrick's own vault (`*`) is **read-only** for agents unless he asks for a specific change.
 
 ## Working with Patrick
 
