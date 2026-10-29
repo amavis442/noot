@@ -3,7 +3,9 @@ package vault
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/amavis442/noot/internal/config"
 )
@@ -64,5 +66,51 @@ func TestSetTitle(t *testing.T) {
 	}
 	if _, err := SetTitle([]byte("just text\n"), "file-name", "Other"); err == nil {
 		t.Error("a note whose title comes from its file name has no title line to change")
+	}
+}
+
+// frontmatterField reads a single frontmatter value from a note on disk.
+func frontmatterField(t *testing.T, v *Vault, rel, key string) string {
+	t.Helper()
+	b, err := os.ReadFile(v.Abs(rel))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		if strings.HasPrefix(line, key+":") {
+			return strings.TrimSpace(strings.TrimPrefix(line, key+":"))
+		}
+	}
+	t.Fatalf("%s: no %s in frontmatter:\n%s", rel, key, b)
+	return ""
+}
+
+func TestNewNoteGivesEveryNoteItsOwnID(t *testing.T) {
+	v := &Vault{Root: t.TempDir()}
+	if err := v.Init(config.KindPersonal); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 10, 29, 12, 30, 0, 0, time.UTC)
+
+	// Notes created within the same second, even the same millisecond, must
+	// still get different ids: the index skips a note whose id another file
+	// already uses.
+	seen := map[string]string{}
+	for _, title := range []string{"Eerste", "Tweede", "Derde"} {
+		rel, err := v.NewNote(title, "zettels", nil, now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id := frontmatterField(t, v, rel, "id")
+		if other, dup := seen[id]; dup {
+			t.Fatalf("%s and %s share id %s", other, rel, id)
+		}
+		seen[id] = rel
+		if len(id) != idLen {
+			t.Errorf("%s: id %q is %d characters, want %d", rel, id, len(id), idLen)
+		}
+		if got := frontmatterField(t, v, rel, "created"); got != "2026-10-29" {
+			t.Errorf("%s: created = %q, want 2026-10-29", rel, got)
+		}
 	}
 }

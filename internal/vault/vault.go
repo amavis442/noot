@@ -20,6 +20,9 @@ import (
 // MetaDir holds noot's own data (the index). It belongs in .gitignore.
 const MetaDir = ".noot"
 
+// idLayout names a note after its creation time when the title has no slug.
+const idLayout = "20060102150405"
+
 // DefaultDirs are created by `noot init` for a personal vault.
 var DefaultDirs = []string{"journal", "zettels", "projects", "attachments"}
 
@@ -190,15 +193,19 @@ func (v *Vault) NewNote(title, dir string, tags []string, now time.Time) (string
 	}
 	slug := Slugify(title)
 	if slug == "" {
-		slug = now.Format("20060102150405")
+		slug = now.Format(idLayout)
 	}
 	rel := path.Join(filepath.ToSlash(dir), slug+".md")
 	for i := 2; exists(v.Abs(rel)); i++ {
 		rel = path.Join(filepath.ToSlash(dir), fmt.Sprintf("%s-%d.md", slug, i))
 	}
+	id, err := NewID(now)
+	if err != nil {
+		return "", err
+	}
 	var b strings.Builder
 	b.WriteString("---\n")
-	fmt.Fprintf(&b, "id: %s\n", now.Format("20060102150405"))
+	fmt.Fprintf(&b, "id: %s\n", id)
 	fmt.Fprintf(&b, "title: %s\n", yamlString(title))
 	fmt.Fprintf(&b, "created: %s\n", now.Format("2006-01-02"))
 	fmt.Fprintf(&b, "tags: [%s]\n", strings.Join(tags, ", "))

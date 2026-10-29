@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -776,4 +777,46 @@ func TestReminders(t *testing.T) {
 	if err := json.Unmarshal([]byte(e.ok("reminder", "--all", "--json")), &rs); err != nil || len(rs) != 3 || !rs[1].Done {
 		t.Errorf("reminder --json = %+v, %v", rs, err)
 	}
+}
+
+func TestNewNotesGetUniqueIDs(t *testing.T) {
+	e := newEnv(t)
+	e.ok("init", e.path("v"), "--name", "v")
+
+	// Notes created in the same second used to share a timestamp id, after
+	// which the index kept the first and skipped the rest. Ids are ULIDs now.
+	ids := map[string]string{}
+	var inOrder []string
+	for _, title := range []string{"Een", "Twee", "Drie", "Vier"} {
+		rel := strings.TrimSpace(e.ok("new", title))
+		id := frontmatterID(t, e.read("v/"+rel))
+		if other, dup := ids[id]; dup {
+			t.Fatalf("%s and %s share id %s", other, rel, id)
+		}
+		ids[id] = rel
+		inOrder = append(inOrder, id)
+	}
+	if !sort.StringsAreSorted(inOrder) {
+		t.Errorf("ids are not in creation order:\n%s", strings.Join(inOrder, "\n"))
+	}
+	if r := e.run("index"); r.code != 0 || strings.Contains(r.stderr, "already used") {
+		t.Errorf("index after four new notes:\n%s", r)
+	}
+
+	// A note is still reachable by its id, whatever the id looks like.
+	for id, rel := range ids {
+		contains(t, "open by id", e.ok("open", id, "--print"), rel)
+	}
+}
+
+// frontmatterID returns the id: value from a note's frontmatter.
+func frontmatterID(t *testing.T, note string) string {
+	t.Helper()
+	for _, line := range strings.Split(note, "\n") {
+		if rest, ok := strings.CutPrefix(line, "id:"); ok {
+			return strings.TrimSpace(rest)
+		}
+	}
+	t.Fatalf("no id in frontmatter:\n%s", note)
+	return ""
 }

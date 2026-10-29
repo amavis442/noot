@@ -143,7 +143,7 @@ noot pull                     # binnenhalen wat elders is gepusht
 
 ```markdown
 ---
-id: 20261024130512          # optioneel; zonder id is het pad (zonder .md) de id
+id: 01M5Q07ST0D58RJ8G68GBWRR3S   # optioneel; zonder id is het pad (zonder .md) de id
 title: Clean architecture in Go
 tags: [go, architectuur]    # of: tags: go, architectuur
 aliases: [hexagonaal]
@@ -158,6 +158,9 @@ of een gewone link: [tekst](../projects/benstartpagina.md). #refactoring #go/pat
 - Links en tags in codeblokken en `inline code` worden genegeerd.
 - Mappen die met `.` beginnen (`.git`, `.obsidian`, `.noot`) en `node_modules` worden overgeslagen.
 - Twee bestanden met dezelfde `id` krijg je als waarschuwing te zien; het tweede bestand wordt dan overgeslagen.
+- `noot new` geeft elke notitie een ULID: 26 tekens, uniek zonder in de rest van de vault te kijken, en
+  toch op aanmaaktijd gesorteerd. Een eigen id mag ook; elke tekst is goed, ook de tijdstempels
+  (`20261024130512`) uit oudere notities.
 - Een bestaande Obsidian-vault werkt gewoon. Logseq-graphs met Markdown ook, al zijn blok-referenties (`((uuid))`) nog niet ondersteund.
 
 ## Architectuur
