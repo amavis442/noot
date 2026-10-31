@@ -21,7 +21,8 @@ func cmdTUI(opts *options) *cobra.Command {
 
   1 Search      results while you type ("#tag" filters), the note rendered beside them
   2 Today       the journal note of a day; [ and ] browse days
-  3 Agenda      the weekly agenda, day by day, opened at today; [ and ] browse weeks
+  3 Agenda      the weekly agenda, day by day, opened at today; [ and ] browse weeks,
+                arrows pick a day, e edits that day only, E the whole week
   4 Reminders   add (ctrl+n), tick off (x), plan into the agenda (p), show done ones (.)
 
 The keys follow superfile's defaults: j/k or arrows move, enter/l/right opens

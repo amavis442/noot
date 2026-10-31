@@ -46,7 +46,7 @@ func newVault(t *testing.T) *app.Service {
 	return svc
 }
 
-func start(t *testing.T, svc *app.Service, ed kit.Editor) *teatest.TestModel {
+func start(t *testing.T, svc *app.Service, ed kit.Editing) *teatest.TestModel {
 	t.Helper()
 	ports := tui.Ports{Notes: svc, Journal: svc, Agenda: svc, Reminders: svc}
 	views := tui.Views(context.Background(), ports, tui.Options{Editor: ed, Markdown: kit.NewGlamour("notty"), Now: func() time.Time { return now }})
@@ -141,5 +141,27 @@ func TestRemindersAreAddedAndPlannedInTheVault(t *testing.T) {
 	agenda, err := os.ReadFile(svc.Vault.Abs(vault.AgendaPath(now)))
 	if err != nil || !strings.Contains(string(agenda), "Kaas kopen") {
 		t.Fatalf("agenda:\n%s\n%v", agenda, err)
+	}
+}
+
+func TestAgendaSavesOneDayInTheWeekFile(t *testing.T) {
+	svc := newVault(t)
+	ed := &kittest.Editor{Change: func(_, content string) string { return content + "\n- [ ] Kaas kopen" }}
+	tm := start(t, svc, ed)
+	tm.Send(tea.KeyMsg{Type: tea.KeyEsc})
+	tm.Type("3")
+	waitFor(t, tm, "Saturday 31 October")
+	tm.Type("je")
+	waitFor(t, tm, "Opgeslagen: zondag 1 november")
+	finalView(t, tm)
+
+	week, err := svc.Agenda(context.Background(), now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range week.Days {
+		if has := strings.Contains(d.Content, "Kaas kopen"); has != (d.Date == "2026-11-01") {
+			t.Errorf("%s: Kaas kopen = %v, want it on Sunday only", d.Date, has)
+		}
 	}
 }

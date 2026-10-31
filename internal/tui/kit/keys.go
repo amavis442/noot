@@ -19,6 +19,7 @@ type KeyMap struct {
 	PreviousPanel key.Binding
 	TogglePreview key.Binding
 	Edit          key.Binding
+	EditAll       key.Binding
 	Help          key.Binding
 	ToggleDone    key.Binding
 	Create        key.Binding
@@ -56,6 +57,7 @@ var Keys = KeyMap{
 	PreviousPanel: key.NewBinding(key.WithKeys("shift+left", "H"), key.WithHelp("H", "vorig paneel")),
 	TogglePreview: key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "preview aan/uit")),
 	Edit:          key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "bewerk")),
+	EditAll:       key.NewBinding(key.WithKeys("E"), key.WithHelp("E", "bewerk alles")),
 	Help:          key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "alle toetsen")),
 	ToggleDone:    key.NewBinding(key.WithKeys("."), key.WithHelp(".", "afgeronde aan/uit")),
 	Create:        key.NewBinding(key.WithKeys("ctrl+n"), key.WithHelp("ctrl+n", "nieuw")),

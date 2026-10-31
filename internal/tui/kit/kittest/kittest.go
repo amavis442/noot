@@ -73,13 +73,25 @@ func Run(t *testing.T, v kit.View, cmd tea.Cmd) {
 	}
 }
 
-// Editor records the files it is asked to edit and reports them edited at once.
+// Editor records the files and texts it is asked to edit and reports them
+// edited at once.
 type Editor struct {
-	Opened []string
+	Opened []string                          // files, in order
+	Texts  []string                          // names of texts, in order
+	Change func(name, content string) string // what the user does to a text
 }
 
 // Edit records rel and returns its EditedMsg.
 func (e *Editor) Edit(rel string) tea.Cmd {
 	e.Opened = append(e.Opened, rel)
 	return func() tea.Msg { return kit.EditedMsg{Rel: rel} }
+}
+
+// EditText records name and returns the text as Change makes it, or unchanged.
+func (e *Editor) EditText(name, content string) tea.Cmd {
+	e.Texts = append(e.Texts, name)
+	if e.Change != nil {
+		content = e.Change(name, content)
+	}
+	return func() tea.Msg { return kit.TextEditedMsg{Name: name, Content: content} }
 }

@@ -21,7 +21,7 @@ type Ports struct {
 
 // Options are what the views share besides the use cases.
 type Options struct {
-	Editor   kit.Editor
+	Editor   kit.Editing
 	Markdown kit.Markdown
 	Now      func() time.Time
 }
