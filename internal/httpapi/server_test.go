@@ -23,6 +23,9 @@ type fakeNotes struct {
 	docs   map[string]domain.Document
 	hits   []domain.SearchHit
 	create error
+	// SaveNote
+	saved struct{ ref, content, version string }
+	save  error
 }
 
 func (f *fakeNotes) Search(_ context.Context, q domain.SearchQuery) ([]domain.SearchHit, error) {
@@ -48,7 +51,22 @@ func (f *fakeNotes) CreateNote(_ context.Context, d app.NoteDraft, _ time.Time) 
 
 // api serves the notes endpoints of notes, with empty journal and reminder fakes.
 func api(notes Notes, assets fs.FS) http.Handler {
-	return New(Ports{Notes: notes, Journal: &fakeJournal{}, Reminders: &fakeReminders{}}, assets)
+	p := testPorts()
+	p.Notes = notes
+	return New(p, assets)
+}
+
+func (f *fakeNotes) SaveNote(_ context.Context, ref, content, version string) (*domain.Document, error) {
+	f.saved.ref, f.saved.content, f.saved.version = ref, content, version
+	if f.save != nil {
+		return nil, f.save
+	}
+	return &domain.Document{NoteRef: domain.NoteRef{ID: "A", Path: ref, Title: "Alpha"}, Content: content, Version: "v2"}, nil
+}
+
+// testPorts has a fake for every port; a test replaces the one it is about.
+func testPorts() Ports {
+	return Ports{Notes: &fakeNotes{}, Journal: &fakeJournal{}, Agenda: &fakeAgenda{}, Reminders: &fakeReminders{}}
 }
 
 func do(t *testing.T, h http.Handler, method, target, contentType, body string) *httptest.ResponseRecorder {
@@ -172,6 +190,39 @@ func TestCreateNote(t *testing.T) {
 	notes.create = fmt.Errorf("disk full")
 	if rec = do(t, h, "POST", "/api/notes", "application/json", `{"title":"x"}`); rec.Code != http.StatusInternalServerError {
 		t.Errorf("failure: status %d", rec.Code)
+	}
+}
+
+func TestSaveNote(t *testing.T) {
+	notes := &fakeNotes{}
+	h := api(notes, fstest.MapFS{})
+
+	rec := do(t, h, "PUT", "/api/notes/agenda%2F2026-W45.md", "application/json", `{"content":"# Week\n","version":"v1"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body)
+	}
+	var got struct{ Path, Version, HTML string }
+	decode(t, rec, &got)
+	if notes.saved.ref != "agenda/2026-W45.md" || notes.saved.content != "# Week\n" || notes.saved.version != "v1" {
+		t.Errorf("saved = %+v", notes.saved)
+	}
+	if got.Version != "v2" || !strings.Contains(got.HTML, "<h1") {
+		t.Errorf("answer = %+v", got)
+	}
+
+	notes.save = fmt.Errorf("agenda/2026-W45.md was %w", app.ErrConflict)
+	rec = do(t, h, "PUT", "/api/notes/agenda%2F2026-W45.md", "application/json", `{"content":"x","version":"old"}`)
+	var e struct{ Error string }
+	decode(t, rec, &e)
+	if rec.Code != http.StatusConflict || !strings.Contains(e.Error, "changed in the meantime") {
+		t.Errorf("conflict: status %d, %+v", rec.Code, e)
+	}
+
+	if rec := do(t, h, "PUT", "/api/notes/x", "text/plain", "x"); rec.Code != http.StatusUnsupportedMediaType {
+		t.Errorf("text body: status %d", rec.Code)
+	}
+	if rec := do(t, h, "PUT", "/api/notes/x", "application/json", `{"content":"x"}`); rec.Code != http.StatusBadRequest {
+		t.Errorf("missing version: status %d", rec.Code)
 	}
 }
 

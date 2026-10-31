@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -17,6 +19,10 @@ const NewNoteDir = "zettels"
 
 // ErrInvalidNote is wrapped by CreateNote when a draft cannot become a note.
 var ErrInvalidNote = errors.New("invalid note")
+
+// ErrConflict is wrapped by SaveNote when the file changed after the caller
+// read it.
+var ErrConflict = errors.New("changed in the meantime")
 
 // tagRe is the character set of a #tag, as the parser recognises it.
 var tagRe = regexp.MustCompile(`^[\p{L}\p{N}_\-/]+$`)
@@ -68,8 +74,8 @@ func (s *Service) Search(ctx context.Context, q domain.SearchQuery) ([]domain.Se
 	return s.Store.Search(ctx, q)
 }
 
-// ReadNote returns the note ref resolves to with its file content. An unknown
-// ref gives an error matching ErrNotFound.
+// ReadNote returns the note ref resolves to with its file content and
+// version. An unknown ref gives an error matching ErrNotFound.
 func (s *Service) ReadNote(ctx context.Context, ref string) (*domain.Document, error) {
 	note, err := s.MustResolve(ctx, ref)
 	if err != nil {
@@ -79,5 +85,45 @@ func (s *Service) ReadNote(ctx context.Context, ref string) (*domain.Document, e
 	if err != nil {
 		return nil, err
 	}
-	return &domain.Document{NoteRef: *note, Content: string(b)}, nil
+	return &domain.Document{NoteRef: *note, Content: string(b), Version: version(b)}, nil
+}
+
+// SaveNote replaces the content of the note ref resolves to. ver is the
+// Version the caller read; when the file has changed or gone since, nothing is
+// written and the error wraps ErrConflict.
+func (s *Service) SaveNote(ctx context.Context, ref, content, ver string) (*domain.Document, error) {
+	note, err := s.MustResolve(ctx, ref)
+	if err != nil {
+		return nil, err
+	}
+	abs := s.Vault.Abs(note.Path)
+	cur, err := os.ReadFile(abs)
+	if os.IsNotExist(err) {
+		return nil, fmt.Errorf("%s no longer exists: %w", note.Path, ErrConflict)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if version(cur) != ver {
+		return nil, fmt.Errorf("%s was %w; reload it and edit again", note.Path, ErrConflict)
+	}
+	if err := os.WriteFile(abs, []byte(content), 0o644); err != nil {
+		return nil, err
+	}
+	return s.readFresh(ctx, note.Path)
+}
+
+// readFresh syncs the index, so a note just created or changed on disk is
+// known with its current title, and then reads the note at rel.
+func (s *Service) readFresh(ctx context.Context, rel string) (*domain.Document, error) {
+	if _, err := s.Sync(ctx, false); err != nil {
+		return nil, err
+	}
+	return s.ReadNote(ctx, rel)
+}
+
+// version identifies file content, so a save can tell whether it changed.
+func version(content []byte) string {
+	sum := sha256.Sum256(content)
+	return hex.EncodeToString(sum[:8])
 }

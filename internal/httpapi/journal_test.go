@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -13,37 +12,41 @@ import (
 	"github.com/amavis442/noot/internal/domain"
 )
 
-type fakeJournal struct {
-	day              time.Time
-	content, version string
-	save             error
-}
+type fakeJournal struct{ day time.Time }
 
 func (f *fakeJournal) Journal(_ context.Context, day time.Time) (*app.JournalDay, error) {
 	f.day = day
 	date := day.Format("2006-01-02")
 	return &app.JournalDay{
-		Document: domain.Document{NoteRef: domain.NoteRef{ID: "J", Path: "journal/" + date + ".md", Title: date}, Content: "---\ntitle: x\n---\n# Dag\n\nZie [[Alpha]].\n"},
-		Date:     date,
-		Version:  "v1",
+		Document: domain.Document{
+			NoteRef: domain.NoteRef{ID: "J", Path: "journal/" + date + ".md", Title: date},
+			Content: "---\ntitle: x\n---\n# Dag\n\nZie [[Alpha]].\n",
+			Version: "v1",
+		},
+		Date: date,
 	}, nil
 }
 
-func (f *fakeJournal) SaveJournal(ctx context.Context, day time.Time, content, version string) (*app.JournalDay, error) {
-	f.content, f.version = content, version
-	if f.save != nil {
-		return nil, f.save
-	}
-	return f.Journal(ctx, day)
-}
+type fakeAgenda struct{ day time.Time }
 
-func journalAPI(j *fakeJournal) http.Handler {
-	return New(Ports{Notes: &fakeNotes{}, Journal: j, Reminders: &fakeReminders{}}, fstest.MapFS{})
+func (f *fakeAgenda) Agenda(_ context.Context, day time.Time) (*app.AgendaWeek, error) {
+	f.day = day
+	return &app.AgendaWeek{
+		Document: domain.Document{
+			NoteRef: domain.NoteRef{ID: "W", Path: "agenda/2026-W45.md", Title: "Agenda 2026-W45"},
+			Content: "# Week 45, 2026\n\n## Monday 2 November\n\n### Planned\n\n- [ ] Melk ([[reminders]])\n",
+			Version: "w1",
+		},
+		Week:   "2026-W45",
+		Monday: "2026-11-02",
+	}, nil
 }
 
 func TestGetJournal(t *testing.T) {
 	j := &fakeJournal{}
-	h := journalAPI(j)
+	p := testPorts()
+	p.Journal = j
+	h := New(p, fstest.MapFS{})
 
 	rec := do(t, h, "GET", "/api/journal/2026-10-31", "", "")
 	if rec.Code != http.StatusOK {
@@ -63,32 +66,31 @@ func TestGetJournal(t *testing.T) {
 	if rec := do(t, h, "GET", "/api/journal/someday", "", ""); rec.Code != http.StatusBadRequest {
 		t.Errorf("bad day: status %d", rec.Code)
 	}
+	if rec := do(t, h, "PUT", "/api/journal/2026-10-31", "application/json", `{}`); rec.Code != http.StatusNotFound {
+		t.Errorf("PUT journal: status %d; journal notes are saved through /api/notes", rec.Code)
+	}
 }
 
-func TestPutJournal(t *testing.T) {
-	j := &fakeJournal{}
-	h := journalAPI(j)
+func TestGetAgenda(t *testing.T) {
+	a := &fakeAgenda{}
+	p := testPorts()
+	p.Agenda = a
+	h := New(p, fstest.MapFS{})
 
-	rec := do(t, h, "PUT", "/api/journal/2026-10-31", "application/json", `{"content":"# Nieuw\n","version":"v1"}`)
+	rec := do(t, h, "GET", "/api/agenda/2026-11-05", "", "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d: %s", rec.Code, rec.Body)
 	}
-	if j.content != "# Nieuw\n" || j.version != "v1" {
-		t.Errorf("saved %q with version %q", j.content, j.version)
+	var got struct{ Week, Monday, Path, Version, HTML string }
+	decode(t, rec, &got)
+	if got.Week != "2026-W45" || got.Monday != "2026-11-02" || got.Path != "agenda/2026-W45.md" || got.Version != "w1" ||
+		!strings.Contains(got.HTML, `<a href="#/note/reminders">reminders</a>`) {
+		t.Errorf("agenda = %+v", got)
 	}
-
-	j.save = fmt.Errorf("journal/2026-10-31.md was %w", app.ErrConflict)
-	rec = do(t, h, "PUT", "/api/journal/2026-10-31", "application/json", `{"content":"x","version":"old"}`)
-	var e struct{ Error string }
-	decode(t, rec, &e)
-	if rec.Code != http.StatusConflict || !strings.Contains(e.Error, "changed in the meantime") {
-		t.Errorf("conflict: status %d, %+v", rec.Code, e)
+	if a.day.Format("2006-01-02") != "2026-11-05" {
+		t.Errorf("day = %s", a.day)
 	}
-
-	if rec := do(t, h, "PUT", "/api/journal/2026-10-31", "text/plain", "x"); rec.Code != http.StatusUnsupportedMediaType {
-		t.Errorf("text body: status %d", rec.Code)
-	}
-	if rec := do(t, h, "PUT", "/api/journal/2026-10-31", "application/json", `{"content":"x"}`); rec.Code != http.StatusBadRequest {
-		t.Errorf("missing version: status %d", rec.Code)
+	if rec := do(t, h, "GET", "/api/agenda/ooit", "", ""); rec.Code != http.StatusBadRequest {
+		t.Errorf("bad day: status %d", rec.Code)
 	}
 }

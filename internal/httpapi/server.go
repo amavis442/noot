@@ -24,12 +24,14 @@ type Notes interface {
 	Search(ctx context.Context, q domain.SearchQuery) ([]domain.SearchHit, error)
 	ReadNote(ctx context.Context, ref string) (*domain.Document, error)
 	CreateNote(ctx context.Context, d app.NoteDraft, now time.Time) (*domain.NoteRef, error)
+	SaveNote(ctx context.Context, ref, content, version string) (*domain.Document, error)
 }
 
 // Ports are the app use cases the API calls; *app.Service implements each.
 type Ports struct {
 	Notes     Notes
 	Journal   Journal
+	Agenda    Agenda
 	Reminders Reminders
 }
 
@@ -51,14 +53,15 @@ and rebuild noot. The JSON API under <code>/api/</code> works regardless.</p>
 // New returns the handler for the API and the frontend files in assets.
 func New(p Ports, assets fs.FS) http.Handler {
 	h := &handler{notes: p.Notes}
-	j := &journalHandler{journal: p.Journal}
+	days := &dayHandler{journal: p.Journal, agenda: p.Agenda}
 	rh := &reminderHandler{reminders: p.Reminders}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/search", h.search)
 	mux.HandleFunc("GET /api/notes/{ref...}", h.readNote)
+	mux.HandleFunc("PUT /api/notes/{ref...}", h.saveNote)
 	mux.HandleFunc("POST /api/notes", h.createNote)
-	mux.HandleFunc("GET /api/journal/{day}", j.get)
-	mux.HandleFunc("PUT /api/journal/{day}", j.put)
+	mux.HandleFunc("GET /api/journal/{day}", days.getJournal)
+	mux.HandleFunc("GET /api/agenda/{day}", days.getAgenda)
 	mux.HandleFunc("GET /api/reminders", rh.list)
 	mux.HandleFunc("POST /api/reminders", rh.add)
 	mux.HandleFunc("POST /api/reminders/{n}/done", rh.done)
@@ -138,6 +141,35 @@ func (h *handler) createNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, ref)
+}
+
+// edit is the request body for saving a note: the whole file and the version
+// it was loaded with.
+type edit struct {
+	Content string `json:"content"`
+	Version string `json:"version"`
+}
+
+func (h *handler) saveNote(w http.ResponseWriter, r *http.Request) {
+	var e edit
+	if !decodeJSON(w, r, &e) {
+		return
+	}
+	if e.Version == "" {
+		writeError(w, http.StatusBadRequest, errors.New("version is required: send the version the note was loaded with"))
+		return
+	}
+	doc, err := h.notes.SaveNote(r.Context(), r.PathValue("ref"), e.Content, e.Version)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	n, err := render(*doc)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, n)
 }
 
 // decodeJSON reads the request body into v. On failure it writes the error
