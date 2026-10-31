@@ -1028,3 +1028,32 @@ func (b *syncBuffer) String() string {
 	defer b.mu.Unlock()
 	return b.buf.String()
 }
+
+// TestOpenRunsTheEditor uses noot itself as $EDITOR: "noot append" writes the
+// path it is given into another note, which proves the editor got the file.
+func TestOpenRunsTheEditor(t *testing.T) {
+	e := newEnv(t)
+	e.ok("init", e.path("v"), "--name", "v")
+	e.write("v/zettels/doel.md", "# Doel\n")
+	e.write("v/zettels/log.md", "# Log\n")
+	e.extra = append(e.extra, "EDITOR="+bin+" -V v --no-sync append log")
+	e.ok("-V", "v", "open", "doel")
+	contains(t, "note written by the editor", e.read("v/zettels/log.md"), e.path("v/zettels/doel.md"))
+}
+
+func TestTUINeedsATerminal(t *testing.T) {
+	e := newEnv(t)
+	e.ok("init", e.path("v"), "--name", "v")
+	r := e.run("-V", "v", "tui")
+	if r.code == 0 || !strings.Contains(r.stderr, "interactive terminal") {
+		t.Fatalf("tui without a terminal should fail with a clear message:\n%s", r)
+	}
+	if r.stdout != "" {
+		t.Errorf("nothing is drawn without a terminal:\n%s", r)
+	}
+	if _, err := os.Stat(e.path("v/journal/" + time.Now().Format("2006-01-02") + ".md")); err == nil {
+		t.Error("the journal is not created when the UI does not start")
+	}
+	contains(t, "tui help", e.ok("tui", "--help"), "Search", "Today", "Agenda", "Reminders", "$EDITOR")
+	contains(t, "root help", e.ok("--help"), "tui")
+}
