@@ -7,10 +7,12 @@ interface Props<T extends Note> {
   state: EditableNoteState<T>;
   /** Shown above the note, such as its path or a day navigation. */
   header: (note: T) => ReactNode;
+  /** Extra class for the note, so a kind of note can have its own style. */
+  className?: string;
 }
 
 /** A note to read, with a button to edit the whole file. */
-export function EditableNote<T extends Note>({ state, header }: Props<T>) {
+export function EditableNote<T extends Note>({ state, header, className }: Props<T>) {
   const { note, error, conflict, saving, save, reload } = state;
   const [editing, setEditing] = useState(false);
 
@@ -29,7 +31,7 @@ export function EditableNote<T extends Note>({ state, header }: Props<T>) {
     return error ? <p role="alert" className="error">{error}</p> : <p className="muted">Laden…</p>;
   }
   return (
-    <article className="note">
+    <article className={["note", className, editing && "editing"].filter(Boolean).join(" ")}>
       {header(note)}
       {error && (
         <div role="alert" className="error">
