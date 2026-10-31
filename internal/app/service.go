@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"sync"
 
 	"github.com/amavis442/noot/internal/domain"
 	"github.com/amavis442/noot/internal/parser"
@@ -39,6 +40,11 @@ type Service struct {
 	Vault *vault.Vault
 	Store Store
 	Git   Git // optional; only Publish needs it
+
+	// syncMu runs one Sync at a time. Overlapping syncs (noot serve creates
+	// notes while Watch syncs) could otherwise see a note in the index that
+	// their own scan of the disk missed, and remove it.
+	syncMu sync.Mutex
 }
 
 // SyncStats reports what a sync did.
@@ -54,6 +60,8 @@ func (s SyncStats) String() string {
 // Sync brings the index up to date. Files are re-parsed only when their mtime
 // or size changed, unless full is set. Parse errors are collected, not fatal.
 func (s *Service) Sync(ctx context.Context, full bool) (SyncStats, error) {
+	s.syncMu.Lock()
+	defer s.syncMu.Unlock()
 	var st SyncStats
 	if full {
 		if err := s.Store.Reset(ctx); err != nil {
