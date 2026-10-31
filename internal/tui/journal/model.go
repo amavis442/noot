@@ -8,6 +8,7 @@ import (
 
 	"github.com/amavis442/noot/internal/app"
 	"github.com/amavis442/noot/internal/tui/kit"
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -30,9 +31,11 @@ type Model struct {
 	editor  kit.Editor
 	now     func() time.Time
 
-	day  time.Time // the day shown, at midnight
-	note *app.JournalDay
-	pane *kit.Pane
+	day    time.Time // the day shown, at midnight
+	note   *app.JournalDay
+	pane   *kit.Pane
+	width  int
+	height int
 }
 
 // New returns the journal tab, starting at today.
@@ -50,29 +53,36 @@ func (m *Model) Init() tea.Cmd { return m.load(m.day) }
 func (m *Model) Capturing() bool { return false }
 
 // Help lists the keys.
-func (m *Model) Help() string { return "←/→ dag · t vandaag · e bewerk · ↑/↓ scroll" }
+func (m *Model) Help() []key.Binding {
+	k := kit.Keys
+	return []key.Binding{kit.WithDesc(k.Previous, "vorige dag"), kit.WithDesc(k.Next, "volgende dag"), k.Today, k.Edit, k.ListDown, k.ListUp, k.PageDown, k.PageUp}
+}
 
-// SetSize passes the room on to the pane.
-func (m *Model) SetSize(width, height int) { m.pane.SetSize(width, height) }
+// SetSize keeps the room for the panel and gives the pane what is inside it.
+func (m *Model) SetSize(width, height int) {
+	m.width, m.height = width, height
+	m.pane.SetSize(kit.BoxInner(width, height))
+}
 
 // Update handles keys and loaded days.
 func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "left", "h":
+		switch {
+		case key.Matches(msg, kit.Keys.Previous):
 			return m.load(m.day.AddDate(0, 0, -1))
-		case "right", "l":
+		case key.Matches(msg, kit.Keys.Next):
 			return m.load(m.day.AddDate(0, 0, 1))
-		case "t":
+		case key.Matches(msg, kit.Keys.Today):
 			return m.load(kit.Midnight(m.now()))
-		case "e":
+		case key.Matches(msg, kit.Keys.Edit):
 			if m.note != nil {
 				return m.editor.Edit(m.note.Path)
 			}
 			return nil
 		}
-		return m.pane.Update(msg)
+		m.pane.Scroll(msg)
+		return nil
 	case dayMsg:
 		if !msg.day.Equal(m.day) {
 			return nil
@@ -99,8 +109,8 @@ func (m *Model) load(day time.Time) tea.Cmd {
 	}
 }
 
-// View draws the pane.
-func (m *Model) View() string { return m.pane.View() }
+// View draws the pane in a focused panel.
+func (m *Model) View() string { return kit.Box(m.pane.View(), m.width, m.height, true) }
 
 // heading names the day shown, marking today.
 func (m *Model) heading() string {

@@ -81,11 +81,11 @@ func TestScrollsToToday(t *testing.T) {
 func TestBrowsesWeeks(t *testing.T) {
 	m, a, _ := newModel(80)
 	kittest.Run(t, m, m.Init())
-	kittest.Type(t, m, "right", "l", "h", "t")
+	kittest.Type(t, m, "]", "]", "[", "t")
 	if want := []string{"2026-W44", "2026-W45", "2026-W46", "2026-W45", "2026-W44"}; !slices.Equal(a.asked, want) {
 		t.Fatalf("asked %v, want %v", a.asked, want)
 	}
-	kittest.Type(t, m, "left")
+	kittest.Type(t, m, "[")
 	if out := m.View(); strings.Contains(out, "vandaag") || !strings.Contains(out, "Week 43") {
 		t.Fatalf("last week has no today:\n%s", out)
 	}

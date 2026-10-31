@@ -32,3 +32,29 @@ var (
 func Truncate(s string, width int) string {
 	return ansi.Truncate(s, width, "…")
 }
+
+// boxBorder and boxPadding are the room a Box takes around its content.
+const (
+	boxBorder  = 1
+	boxPadding = 1
+)
+
+// BoxInner returns the room for content inside a Box of width x height.
+func BoxInner(width, height int) (int, int) {
+	return max(width-2*(boxBorder+boxPadding), 1), max(height-2*boxBorder, 1)
+}
+
+// Box draws content in a rounded panel of exactly width x height cells. The
+// focused panel's border has the accent colour, as in superfile.
+func Box(content string, width, height int, focused bool) string {
+	border := panel
+	if focused {
+		border = accent
+	}
+	w, h := BoxInner(width, height)
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).BorderForeground(border).
+		Padding(0, boxPadding).
+		Width(w + 2*boxPadding).Height(h).MaxHeight(h + 2*boxBorder).
+		Render(lipgloss.NewStyle().MaxWidth(w).MaxHeight(h).Render(content))
+}

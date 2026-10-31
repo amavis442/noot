@@ -100,9 +100,9 @@ func TestCompletesTheSelectedReminder(t *testing.T) {
 func TestAddsAReminderWithADueDate(t *testing.T) {
 	m, f, _ := newModel()
 	kittest.Run(t, m, m.Init())
-	kittest.Type(t, m, "a")
+	kittest.Type(t, m, "ctrl+n")
 	if !m.Capturing() {
-		t.Fatal("a opens a text field")
+		t.Fatal("ctrl+n opens a text field")
 	}
 	kittest.Type(t, m, "Kaas kopen", "enter", "monday", "enter")
 	if m.Capturing() {
@@ -120,12 +120,12 @@ func TestAddsAReminderWithADueDate(t *testing.T) {
 func TestAddWithoutDueDateAndCancel(t *testing.T) {
 	m, f, _ := newModel()
 	kittest.Run(t, m, m.Init())
-	kittest.Type(t, m, "a", "Zonder datum", "enter", "enter")
+	kittest.Type(t, m, "ctrl+n", "Zonder datum", "enter", "enter")
 	if got := f.list[len(f.list)-1]; got.Text != "Zonder datum" || got.Due != "" {
 		t.Fatalf("added %+v", got)
 	}
 	n := len(f.list)
-	kittest.Type(t, m, "a", "Toch niet", "esc")
+	kittest.Type(t, m, "ctrl+n", "Toch niet", "esc")
 	if len(f.list) != n || m.Capturing() {
 		t.Fatal("esc cancels adding")
 	}
@@ -135,7 +135,7 @@ func TestABadDateKeepsTheFieldOpen(t *testing.T) {
 	m, f, _ := newModel()
 	kittest.Run(t, m, m.Init())
 	n := len(f.list)
-	kittest.Type(t, m, "a", "Iets", "enter", "ooit", "enter")
+	kittest.Type(t, m, "ctrl+n", "Iets", "enter", "ooit", "enter")
 	if len(f.list) != n || !m.Capturing() {
 		t.Fatal("a bad date adds nothing and keeps the field open")
 	}
@@ -157,6 +157,20 @@ func TestPlansTheSelectedReminder(t *testing.T) {
 	}
 	if out := m.View(); !strings.Contains(out, "Gepland op zondag 1 november 2026") {
 		t.Fatalf("view after planning:\n%s", out)
+	}
+}
+
+func TestCtrlCCancelsTypingAndAIsJustAKey(t *testing.T) {
+	m, f, _ := newModel()
+	kittest.Run(t, m, m.Init())
+	n := len(f.list)
+	kittest.Type(t, m, "a")
+	if m.Capturing() {
+		t.Fatal("a does nothing; ctrl+n adds, as in superfile")
+	}
+	kittest.Type(t, m, "ctrl+n", "Iets", "ctrl+c")
+	if m.Capturing() || len(f.list) != n {
+		t.Fatal("ctrl+c cancels typing")
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 	"github.com/amavis442/noot/internal/tui/kit"
 	"github.com/amavis442/noot/internal/vault"
 	"github.com/charmbracelet/bubbles/cursor"
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -78,17 +79,24 @@ func (m *Model) Init() tea.Cmd { return m.reload() }
 func (m *Model) Capturing() bool { return m.mode != browsing }
 
 // Help lists the keys.
-func (m *Model) Help() string {
+func (m *Model) Help() []key.Binding {
+	k := kit.Keys
 	if m.mode != browsing {
-		return "enter bevestig · esc annuleer"
+		return []key.Binding{k.ConfirmTyping, k.CancelTyping}
 	}
-	return "j/k kies · a nieuw · x klaar · p plan · . alles · e bewerk"
+	return []key.Binding{k.ListDown, k.ListUp, k.Create, k.Done, k.Plan, k.ToggleDone, k.Edit}
 }
 
-// SetSize sets the room the list may use.
+// SetSize sets the room for the panel.
 func (m *Model) SetSize(width, height int) {
 	m.width, m.height = width, height
-	m.input.Width = max(width-20, 10)
+	m.input.Width = max(width-24, 10)
+}
+
+// rows is the number of reminders the panel shows at once.
+func (m *Model) rows() int {
+	_, h := kit.BoxInner(m.width, m.height)
+	return max(h-2, 1)
 }
 
 // Update handles keys and the reloaded list.
@@ -110,36 +118,42 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 
 func (m *Model) listKey(msg tea.KeyMsg) tea.Cmd {
 	m.notice, m.err = "", nil
-	switch msg.String() {
-	case "up", "k":
+	k := kit.Keys
+	switch {
+	case key.Matches(msg, k.ListUp):
 		m.cursor = max(m.cursor-1, 0)
-	case "down", "j":
+	case key.Matches(msg, k.ListDown):
 		m.cursor = min(m.cursor+1, max(len(m.list)-1, 0))
-	case ".":
+	case key.Matches(msg, k.PageUp):
+		m.cursor = max(m.cursor-m.rows(), 0)
+	case key.Matches(msg, k.PageDown):
+		m.cursor = min(m.cursor+m.rows(), max(len(m.list)-1, 0))
+	case key.Matches(msg, k.ToggleDone):
 		m.all = !m.all
 		return m.reload()
-	case "a":
+	case key.Matches(msg, k.Create):
 		m.open(addingText, "Nieuw: ", "wat moet er gebeuren?")
-	case "x", "space":
+	case key.Matches(msg, k.Done):
 		if r, ok := m.selected(); ok {
 			return m.complete(r)
 		}
-	case "p":
+	case key.Matches(msg, k.Plan):
 		if _, ok := m.selected(); ok {
 			m.open(planning, "Plannen op: ", "leeg is vandaag; "+dayHint)
 		}
-	case "e":
+	case key.Matches(msg, k.Edit):
 		return m.editor.Edit(vault.RemindersFile)
 	}
 	return nil
 }
 
+// fieldKey handles typing; superfile's typing keys win over all others.
 func (m *Model) fieldKey(msg tea.KeyMsg) tea.Cmd {
-	switch msg.String() {
-	case "esc":
+	switch {
+	case key.Matches(msg, kit.Keys.CancelTyping):
 		m.close()
 		return nil
-	case "enter":
+	case key.Matches(msg, kit.Keys.ConfirmTyping):
 		return m.confirm()
 	}
 	var cmd tea.Cmd
@@ -249,9 +263,9 @@ func (m *Model) listed(notice string, err error) listMsg {
 func (m *Model) View() string {
 	var lines []string
 	if len(m.list) == 0 {
-		lines = append(lines, kit.Muted.Render("Geen open herinneringen. Druk a voor een nieuwe."))
+		lines = append(lines, kit.Muted.Render("Geen open herinneringen. Druk ctrl+n voor een nieuwe."))
 	}
-	rows := max(m.height-3, 1)
+	rows := m.rows()
 	first := max(m.cursor-rows+1, 0)
 	today := kit.Midnight(m.now()).Format("2006-01-02")
 	for i := first; i < len(m.list) && i < first+rows; i++ {
@@ -267,7 +281,8 @@ func (m *Model) View() string {
 	if m.err != nil {
 		foot = lipgloss.JoinVertical(lipgloss.Left, foot, kit.Error.Render(m.err.Error()))
 	}
-	return lipgloss.JoinVertical(lipgloss.Left, strings.Join(lines, "\n"), "", foot)
+	content := lipgloss.JoinVertical(lipgloss.Left, strings.Join(lines, "\n"), "", foot)
+	return kit.Box(content, m.width, m.height, true)
 }
 
 // line draws one reminder: box, text and its dates.
@@ -303,7 +318,8 @@ func (m *Model) line(r vault.Reminder, selected bool, today string) string {
 	if len(meta) > 0 {
 		text += kit.Muted.Render("  " + strings.Join(meta, " · "))
 	}
-	return kit.Truncate(text, max(m.width, 1))
+	w, _ := kit.BoxInner(m.width, m.height)
+	return kit.Truncate(text, w)
 }
 
 // dayMonth turns YYYY-MM-DD into "2 november"; other text is kept.

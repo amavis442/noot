@@ -11,6 +11,7 @@ import (
 
 	"github.com/amavis442/noot/internal/app"
 	"github.com/amavis442/noot/internal/config"
+	"github.com/amavis442/noot/internal/domain"
 	"github.com/amavis442/noot/internal/storage/sqlite"
 	"github.com/amavis442/noot/internal/tui"
 	"github.com/amavis442/noot/internal/tui/kit"
@@ -76,10 +77,34 @@ func TestSearchShowsTheNoteFromTheIndex(t *testing.T) {
 	}
 }
 
+func TestTabPicksASearchResult(t *testing.T) {
+	svc := newVault(t)
+	if err := os.WriteFile(svc.Vault.Abs("brood.md"), []byte("# Brood\n\nOok met rogge, 24 uur rijzen.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Sync(context.Background(), false); err != nil {
+		t.Fatal(err)
+	}
+	hits, err := svc.Search(context.Background(), domain.SearchQuery{Text: "rogge", Limit: 50})
+	if err != nil || len(hits) != 2 {
+		t.Fatalf("hits = %+v, %v", hits, err)
+	}
+	ed := &kittest.Editor{}
+	tm := start(t, svc, ed)
+	tm.Type("rogge")
+	waitFor(t, tm, "brood.md")
+	tm.Send(tea.KeyMsg{Type: tea.KeyTab})
+	tm.Type("je")
+	waitFor(t, tm, "▸ "+hits[1].Title)
+	finalView(t, tm)
+	if len(ed.Opened) != 1 || ed.Opened[0] != hits[1].Path {
+		t.Fatalf("tab, j, e should open the second result %s, opened %v", hits[1].Path, ed.Opened)
+	}
+}
 func TestJournalAndAgendaAreCreatedOnOpening(t *testing.T) {
 	svc := newVault(t)
 	tm := start(t, svc, &kittest.Editor{})
-	tm.Send(tea.KeyMsg{Type: tea.KeyEsc}) // leave the search field, so 2 switches tabs
+	tm.Send(tea.KeyMsg{Type: tea.KeyEsc}) // stop typing in the search bar, so 2 switches tabs
 	tm.Type("2")
 	waitFor(t, tm, "zaterdag 31 oktober 2026")
 	tm.Type("3")
@@ -98,7 +123,7 @@ func TestRemindersAreAddedAndPlannedInTheVault(t *testing.T) {
 	tm.Send(tea.KeyMsg{Type: tea.KeyEsc})
 	tm.Type("4")
 	waitFor(t, tm, "Geen open herinneringen")
-	tm.Type("a")
+	tm.Send(tea.KeyMsg{Type: tea.KeyCtrlN})
 	tm.Type("Kaas kopen")
 	tm.Send(tea.KeyMsg{Type: tea.KeyEnter})
 	tm.Type("monday")

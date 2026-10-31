@@ -178,3 +178,68 @@ func TestEmptyQueryAndErrorsAreShown(t *testing.T) {
 		t.Fatalf("clearing the query clears the results:\n%s", out)
 	}
 }
+
+func TestTabLeavesTheSearchBarToPickAResult(t *testing.T) {
+	m, _, ed := newModel()
+	kittest.Type(t, m, "rogge", "tab")
+	if m.Capturing() {
+		t.Fatal("tab moves the keyboard from the search bar to the results")
+	}
+	kittest.Type(t, m, "j")
+	if out := m.View(); !strings.Contains(out, "Ook rogge, en spelt") {
+		t.Fatalf("j picks the second result:\n%s", out)
+	}
+	kittest.Type(t, m, "e")
+	if !slices.Equal(ed.Opened, []string{"zuurdesem.md"}) {
+		t.Fatalf("e opens the picked result, opened %v", ed.Opened)
+	}
+}
+
+func TestPanelsSwitchWithSuperfileKeys(t *testing.T) {
+	m, _, ed := newModel()
+	kittest.Type(t, m, "rogge", "esc")
+	if m.Capturing() {
+		t.Fatal("esc cancels typing")
+	}
+	for _, keys := range [][]string{{"tab", "H"}, {"L", "h"}, {"l", "left"}, {"enter", "backspace"}, {"right", "tab"}} {
+		kittest.Type(t, m, keys[0])
+		kittest.Type(t, m, "j") // scrolls the preview, so the selection stays
+		kittest.Type(t, m, keys[1])
+		kittest.Type(t, m, "e")
+		if last := ed.Opened[len(ed.Opened)-1]; last != "brood.md" {
+			t.Fatalf("%s then %s: j moved the selection to %s", keys[0], keys[1], last)
+		}
+	}
+	kittest.Type(t, m, "j", "e")
+	if last := ed.Opened[len(ed.Opened)-1]; last != "zuurdesem.md" {
+		t.Fatalf("back in the results j moves the selection, opened %s", last)
+	}
+	kittest.Type(t, m, "/")
+	if !m.Capturing() {
+		t.Fatal("/ goes back to the search bar")
+	}
+}
+
+func TestFTogglesThePreview(t *testing.T) {
+	m, _, _ := newModel()
+	kittest.Type(t, m, "Bonen", "enter", "f")
+	if out := m.View(); strings.Contains(out, "# Koffie") || !strings.Contains(out, "koffie.md") {
+		t.Fatalf("f hides the preview, the results stay:\n%s", out)
+	}
+	kittest.Type(t, m, "l")
+	kittest.Type(t, m, "f")
+	if out := m.View(); !strings.Contains(out, "# Koffie") {
+		t.Fatalf("f shows the preview again:\n%s", out)
+	}
+}
+
+func TestHelpFollowsTheFocus(t *testing.T) {
+	m, _, _ := newModel()
+	if got := kit.Short(m.Help()...); !strings.Contains(got, "tab naar resultaten") {
+		t.Fatalf("search bar help = %q", got)
+	}
+	kittest.Type(t, m, "tab")
+	if got := kit.Short(m.Help()...); !strings.Contains(got, "enter/l open") || !strings.Contains(got, "/ zoek") {
+		t.Fatalf("results help = %q", got)
+	}
+}

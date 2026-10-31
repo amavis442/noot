@@ -12,6 +12,7 @@ import (
 	"github.com/amavis442/noot/internal/parser"
 	"github.com/amavis442/noot/internal/tui/kit"
 	"github.com/amavis442/noot/internal/vault"
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -40,6 +41,8 @@ type Model struct {
 	monday time.Time // the week shown
 	week   *app.AgendaWeek
 	pane   *kit.Pane
+	width  int
+	height int
 }
 
 // New returns the agenda tab, starting at this week.
@@ -57,29 +60,36 @@ func (m *Model) Init() tea.Cmd { return m.load(m.monday) }
 func (m *Model) Capturing() bool { return false }
 
 // Help lists the keys.
-func (m *Model) Help() string { return "←/→ week · t deze week · e bewerk · ↑/↓ scroll" }
+func (m *Model) Help() []key.Binding {
+	k := kit.Keys
+	return []key.Binding{kit.WithDesc(k.Previous, "vorige week"), kit.WithDesc(k.Next, "volgende week"), kit.WithDesc(k.Today, "deze week"), k.Edit, k.ListDown, k.ListUp, k.PageDown, k.PageUp}
+}
 
-// SetSize passes the room on to the pane.
-func (m *Model) SetSize(width, height int) { m.pane.SetSize(width, height) }
+// SetSize keeps the room for the panel and gives the pane what is inside it.
+func (m *Model) SetSize(width, height int) {
+	m.width, m.height = width, height
+	m.pane.SetSize(kit.BoxInner(width, height))
+}
 
 // Update handles keys and loaded weeks.
 func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "left", "h":
+		switch {
+		case key.Matches(msg, kit.Keys.Previous):
 			return m.load(m.monday.AddDate(0, 0, -7))
-		case "right", "l":
+		case key.Matches(msg, kit.Keys.Next):
 			return m.load(m.monday.AddDate(0, 0, 7))
-		case "t":
+		case key.Matches(msg, kit.Keys.Today):
 			return m.load(vault.MondayOf(kit.Midnight(m.now())))
-		case "e":
+		case key.Matches(msg, kit.Keys.Edit):
 			if m.week != nil {
 				return m.editor.Edit(m.week.Path)
 			}
 			return nil
 		}
-		return m.pane.Update(msg)
+		m.pane.Scroll(msg)
+		return nil
 	case weekMsg:
 		if !msg.monday.Equal(m.monday) {
 			return nil
@@ -141,5 +151,5 @@ func (m *Model) heading() string {
 	return fmt.Sprintf("Week %d · %s – %s", week, from, to)
 }
 
-// View draws the pane.
-func (m *Model) View() string { return m.pane.View() }
+// View draws the pane in a focused panel.
+func (m *Model) View() string { return kit.Box(m.pane.View(), m.width, m.height, true) }

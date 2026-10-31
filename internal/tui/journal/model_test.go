@@ -59,13 +59,13 @@ func TestShowsTodaysJournal(t *testing.T) {
 func TestBrowsesDaysAndBackToToday(t *testing.T) {
 	m, j, _ := newModel()
 	kittest.Run(t, m, m.Init())
-	kittest.Type(t, m, "left")
+	kittest.Type(t, m, "[")
 	if out := m.View(); !strings.Contains(out, "vrijdag 30 oktober 2026") || !strings.Contains(out, "Koffie gezet.") || strings.Contains(out, "vandaag") {
-		t.Fatalf("left shows yesterday:\n%s", out)
+		t.Fatalf("[ shows yesterday:\n%s", out)
 	}
-	kittest.Type(t, m, "l", "l")
+	kittest.Type(t, m, "]", "]")
 	if out := m.View(); !strings.Contains(out, "zondag 1 november 2026") {
-		t.Fatalf("l goes a day forward:\n%s", out)
+		t.Fatalf("] goes a day forward:\n%s", out)
 	}
 	kittest.Type(t, m, "t")
 	if want := []string{"2026-10-31", "2026-10-30", "2026-10-31", "2026-11-01", "2026-10-31"}; !slices.Equal(j.asked, want) {
@@ -76,7 +76,7 @@ func TestBrowsesDaysAndBackToToday(t *testing.T) {
 func TestInitReturnsToTheSameDay(t *testing.T) {
 	m, j, _ := newModel()
 	kittest.Run(t, m, m.Init())
-	kittest.Type(t, m, "h")
+	kittest.Type(t, m, "[")
 	kittest.Run(t, m, m.Init())
 	if got := j.asked[len(j.asked)-1]; got != "2026-10-30" {
 		t.Fatalf("reopening the tab reloads the day shown, asked %s", got)

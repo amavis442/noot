@@ -132,14 +132,31 @@ noot tui                          # de vault die je ook met -V, -A of de huidige
 noot -A tui
 ```
 
-`noot tui` opent de vault schermvullend in de terminal (PowerShell, Windows Terminal en Linux-terminals), met vier tabs. Wisselen doe je met `tab` of `1`-`4`; stoppen met `q` of `ctrl+c`.
+`noot tui` opent de vault schermvullend in de terminal (PowerShell, Windows Terminal en Linux-terminals), met vier tabs. Wisselen doe je met `1`-`4`; stoppen met `q` of `esc`. `?` toont alle toetsen van waar je bent.
 
-| Tab | Wat | Toetsen |
-|---|---|---|
-| **1 Zoeken** | Resultaten terwijl je typt, met de gekozen notitie opgemaakt ernaast. `#tag` in de zoekopdracht filtert op tag | `↑`/`↓` kiezen, `enter` of `esc` naar de resultaten, daar `j`/`k`, `pgup`/`pgdn` om de notitie te scrollen, `/` terug naar het zoekveld |
-| **2 Vandaag** | De dagnotitie (wordt aangemaakt als hij ontbreekt) | `←`/`→` vorige/volgende dag, `t` vandaag |
-| **3 Agenda** | De weekagenda per dag, geopend bij vandaag | `←`/`→` vorige/volgende week, `t` deze week |
-| **4 Herinneringen** | De open reminders, te laat in het rood | `a` toevoegen (daarna een uiterste datum, leeg is geen), `x` afvinken, `p` inplannen in de agenda (leeg is vandaag), `.` ook de afgeronde |
+De toetsen volgen de standaard van [superfile](https://superfile.dev/list/hotkey-list) (`spf`):
+
+| Toets | Wat |
+|---|---|
+| `j`/`k`, `↓`/`↑`, `pgdn`/`pgup` | Omlaag/omhoog in een lijst of notitie |
+| `enter`, `l`, `→` | Openen: van de resultaten naar de notitie |
+| `h`, `←`, `backspace` | Terug: van de notitie naar de resultaten |
+| `tab`/`L`, `H` (`shift+←`) | Volgend/vorig paneel |
+| `/` | Naar de zoekbalk |
+| `f` | Preview aan/uit |
+| `e` | Bewerken in je editor |
+| `ctrl+n` | Nieuw (reminder) |
+| `.` | Afgeronde reminders tonen/verbergen |
+| `enter` / `esc` of `ctrl+c` | Tijdens het typen: bevestigen / annuleren |
+
+Daarnaast, waar superfile niets voor heeft: `[` en `]` voor vorige/volgende dag of week, `t` voor vandaag, `x` om af te vinken en `p` om in te plannen.
+
+| Tab | Wat |
+|---|---|
+| **1 Zoeken** | Een zoekbalk met twee panelen eronder: de resultaten, die bijwerken terwijl je typt, en de gekozen notitie opgemaakt. `#tag` in de zoekopdracht filtert op tag. Na het typen brengt `tab`, `enter` of `esc` je naar de resultaten; het paneel met de focus heeft een gekleurde rand |
+| **2 Vandaag** | De dagnotitie (wordt aangemaakt als hij ontbreekt) |
+| **3 Agenda** | De weekagenda per dag, geopend bij vandaag |
+| **4 Herinneringen** | De open reminders, te laat in het rood. Bij `ctrl+n` volgt na de tekst een uiterste datum (leeg is geen), bij `p` de dag (leeg is vandaag) |
 
 Met `e` open je wat je ziet in `$VISUAL` of `$EDITOR` (zonder die variabelen Notepad op Windows en `vi` op Linux), net als `noot open`. Na het sluiten van de editor komt de UI terug en wordt de index bijgewerkt. Een dag schrijf je zoals op de commandoregel: `2026-11-06`, `vandaag`, `morgen`, `+3` of `vrijdag`. Met `NO_COLOR` gezet verschijnt alles zonder kleur.
 

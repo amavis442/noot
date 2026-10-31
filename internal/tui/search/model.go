@@ -10,6 +10,7 @@ import (
 	"github.com/amavis442/noot/internal/domain"
 	"github.com/amavis442/noot/internal/tui/kit"
 	"github.com/charmbracelet/bubbles/cursor"
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -42,31 +43,45 @@ type noteMsg struct {
 // syncedMsg follows the index update after editing.
 type syncedMsg struct{ err error }
 
-// Model is the search tab.
+// focus is the part of the tab that has the keyboard.
+type focus int
+
+const (
+	onSearchBar focus = iota
+	onResults
+	onPreview
+)
+
+// searchBarHeight is the boxed search field above the panels.
+const searchBarHeight = 3
+
+// Model is the search tab: a search bar over two panels, the results and the
+// preview of the selected note. The keys follow superfile.
 type Model struct {
 	ctx    context.Context
 	notes  Notes
 	editor kit.Editor
 
-	input   textinput.Model
-	inInput bool // the search field has the keyboard, else the results
-	seq     int  // number of the latest search; older answers are dropped
-	hits    []domain.SearchHit
-	cursor  int
-	err     error
-	preview *kit.Pane
-	width   int
-	height  int
+	input       textinput.Model
+	focus       focus
+	showPreview bool
+	seq         int // number of the latest search; older answers are dropped
+	hits        []domain.SearchHit
+	cursor      int
+	err         error
+	preview     *kit.Pane
+	width       int
+	height      int
 }
 
-// New returns the search tab.
+// New returns the search tab, typing in the search bar.
 func New(ctx context.Context, notes Notes, md kit.Markdown, ed kit.Editor) *Model {
 	in := textinput.New()
-	in.Prompt = "› "
+	in.Prompt = "/ "
 	in.Placeholder = "zoek in je notities, #tag filtert"
 	in.Cursor.SetMode(cursor.CursorStatic)
 	in.Focus()
-	return &Model{ctx: ctx, notes: notes, editor: ed, input: in, inInput: true, preview: kit.NewPane(md)}
+	return &Model{ctx: ctx, notes: notes, editor: ed, input: in, focus: onSearchBar, showPreview: true, preview: kit.NewPane(md)}
 }
 
 // Title is the tab's label.
@@ -80,36 +95,57 @@ func (m *Model) Init() tea.Cmd {
 	return m.search()
 }
 
-// Capturing is true while the search field has the keyboard.
-func (m *Model) Capturing() bool { return m.inInput }
+// Capturing is true while typing in the search bar.
+func (m *Model) Capturing() bool { return m.focus == onSearchBar }
 
-// Help lists the keys.
-func (m *Model) Help() string {
-	if m.inInput {
-		return "↑/↓ kies · enter naar resultaten · esc naar resultaten"
+// Help lists the keys of the part that has the keyboard.
+func (m *Model) Help() []key.Binding {
+	k := kit.Keys
+	switch m.focus {
+	case onSearchBar:
+		return []key.Binding{k.ConfirmTyping, k.CancelTyping, tabToResults, arrows}
+	case onPreview:
+		return []key.Binding{k.ListDown, k.ListUp, k.PageDown, k.PageUp, k.Parent, k.NextPanel, k.PreviousPanel, k.Edit, k.TogglePreview, k.SearchBar}
 	}
-	return "j/k kies · e bewerk · pgup/pgdn scroll · / zoek"
+	return []key.Binding{k.ListDown, k.ListUp, k.Confirm, k.NextPanel, k.PreviousPanel, k.Edit, k.TogglePreview, k.SearchBar}
 }
 
-// SetSize divides the room between the results and the preview.
+// Keys of the search bar that only exist while typing.
+var (
+	tabToResults = key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "naar resultaten"))
+	arrows       = key.NewBinding(key.WithKeys("up", "down"), key.WithHelp("↑/↓", "kies"))
+)
+
+// SetSize divides the room between the search bar and the panels.
 func (m *Model) SetSize(width, height int) {
 	m.width, m.height = width, height
-	m.input.Width = max(width-4, 10)
-	m.preview.SetSize(m.previewWidth(), max(height-2, 1))
+	m.input.Width = max(width-8, 10)
+	m.preview.SetSize(kit.BoxInner(m.previewWidth(), m.panelHeight()))
 }
 
-func (m *Model) listWidth() int { return min(max(m.width*2/5, 24), 50) }
+func (m *Model) panelHeight() int { return max(m.height-searchBarHeight, 3) }
 
-func (m *Model) previewWidth() int { return max(m.width-m.listWidth()-3, 10) }
+// listWidth is the results panel's width; it takes all of it without preview.
+func (m *Model) listWidth() int {
+	if !m.showPreview {
+		return m.width
+	}
+	return min(max(m.width*2/5, 28), 56)
+}
+
+func (m *Model) previewWidth() int { return max(m.width-m.listWidth(), 10) }
 
 // Update handles keys and the answers of searches, note reads and syncs.
 func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if m.inInput {
-			return m.inputKey(msg)
+		switch m.focus {
+		case onSearchBar:
+			return m.searchBarKey(msg)
+		case onPreview:
+			return m.previewKey(msg)
 		}
-		return m.listKey(msg)
+		return m.resultsKey(msg)
 	case hitsMsg:
 		if msg.seq != m.seq {
 			return nil
@@ -127,7 +163,7 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 		if msg.path != m.selectedPath() {
 			return nil
 		}
-		m.showPreview(msg.doc, msg.err)
+		m.setPreview(msg.doc, msg.err)
 	case kit.EditedMsg:
 		return m.sync()
 	case syncedMsg:
@@ -140,16 +176,17 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	return nil
 }
 
-func (m *Model) inputKey(msg tea.KeyMsg) tea.Cmd {
-	switch msg.String() {
-	case "up", "ctrl+p":
-		return m.move(-1)
-	case "down", "ctrl+n":
-		return m.move(1)
-	case "enter", "esc":
-		m.inInput = false
-		m.input.Blur()
+// searchBarKey handles typing. Superfile's typing keys win over all others;
+// tab also leaves the bar, so the results can be picked right away.
+func (m *Model) searchBarKey(msg tea.KeyMsg) tea.Cmd {
+	switch {
+	case key.Matches(msg, kit.Keys.ConfirmTyping, kit.Keys.CancelTyping, tabToResults):
+		m.setFocus(onResults)
 		return nil
+	case msg.Type == tea.KeyUp:
+		return m.move(-1)
+	case msg.Type == tea.KeyDown:
+		return m.move(1)
 	}
 	before := m.input.Value()
 	var cmd tea.Cmd
@@ -160,27 +197,73 @@ func (m *Model) inputKey(msg tea.KeyMsg) tea.Cmd {
 	if strings.TrimSpace(m.input.Value()) == "" {
 		m.seq++
 		m.hits, m.err = nil, nil
-		m.showPreview(nil, nil)
+		m.setPreview(nil, nil)
 		return cmd
 	}
 	return tea.Batch(cmd, m.search())
 }
 
-func (m *Model) listKey(msg tea.KeyMsg) tea.Cmd {
-	switch msg.String() {
-	case "/", "i":
-		m.inInput = true
-		m.input.Focus()
-	case "up", "k":
+func (m *Model) resultsKey(msg tea.KeyMsg) tea.Cmd {
+	k := kit.Keys
+	switch {
+	case key.Matches(msg, k.ListUp):
 		return m.move(-1)
-	case "down", "j":
+	case key.Matches(msg, k.ListDown):
 		return m.move(1)
-	case "e", "enter":
-		if p := m.selectedPath(); p != "" {
-			return m.editor.Edit(p)
+	case key.Matches(msg, k.PageUp):
+		return m.move(-m.perPage())
+	case key.Matches(msg, k.PageDown):
+		return m.move(m.perPage())
+	case key.Matches(msg, k.Confirm, k.NextPanel, k.PreviousPanel):
+		if m.showPreview && m.selectedPath() != "" {
+			m.setFocus(onPreview)
 		}
-	default:
-		return m.preview.Update(msg)
+	case key.Matches(msg, k.SearchBar):
+		m.setFocus(onSearchBar)
+	case key.Matches(msg, k.Edit):
+		return m.edit()
+	case key.Matches(msg, k.TogglePreview):
+		m.togglePreview()
+	}
+	return nil
+}
+
+func (m *Model) previewKey(msg tea.KeyMsg) tea.Cmd {
+	k := kit.Keys
+	switch {
+	case m.preview.Scroll(msg):
+	case key.Matches(msg, k.Parent, k.NextPanel, k.PreviousPanel):
+		m.setFocus(onResults)
+	case key.Matches(msg, k.SearchBar):
+		m.setFocus(onSearchBar)
+	case key.Matches(msg, k.Edit):
+		return m.edit()
+	case key.Matches(msg, k.TogglePreview):
+		m.togglePreview()
+	}
+	return nil
+}
+
+func (m *Model) setFocus(f focus) {
+	m.focus = f
+	if f == onSearchBar {
+		m.input.Focus()
+	} else {
+		m.input.Blur()
+	}
+}
+
+func (m *Model) togglePreview() {
+	m.showPreview = !m.showPreview
+	if !m.showPreview {
+		m.setFocus(onResults)
+	}
+	m.SetSize(m.width, m.height)
+}
+
+func (m *Model) edit() tea.Cmd {
+	if p := m.selectedPath(); p != "" {
+		return m.editor.Edit(p)
 	}
 	return nil
 }
@@ -224,7 +307,7 @@ func (m *Model) selectedPath() string {
 func (m *Model) loadPreview() tea.Cmd {
 	path := m.selectedPath()
 	if path == "" {
-		m.showPreview(nil, nil)
+		m.setPreview(nil, nil)
 		return nil
 	}
 	return func() tea.Msg {
@@ -240,8 +323,8 @@ func (m *Model) sync() tea.Cmd {
 	}
 }
 
-// showPreview shows doc, or err, next to the results; nil clears the preview.
-func (m *Model) showPreview(doc *domain.Document, err error) {
+// setPreview shows doc, or err, next to the results; nil clears the preview.
+func (m *Model) setPreview(doc *domain.Document, err error) {
 	m.preview.SetError(err)
 	if doc == nil {
 		m.preview.SetHeading("", "")
@@ -252,31 +335,43 @@ func (m *Model) showPreview(doc *domain.Document, err error) {
 	m.preview.SetMarkdown(doc.Content)
 }
 
-// View draws the search field above the results and the preview.
+// View draws the search bar above the results and the preview panels.
 func (m *Model) View() string {
-	rows := m.height - 2
-	var list string
+	bar := kit.Box(m.input.View(), m.width, searchBarHeight, m.focus == onSearchBar)
+	h := m.panelHeight()
+	_, rows := kit.BoxInner(m.listWidth(), h)
+	results := kit.Box(m.results(rows), m.listWidth(), h, m.focus == onResults)
+	if !m.showPreview {
+		return lipgloss.JoinVertical(lipgloss.Left, bar, results)
+	}
+	preview := kit.Box(m.preview.View(), m.previewWidth(), h, m.focus == onPreview)
+	return lipgloss.JoinVertical(lipgloss.Left, bar, lipgloss.JoinHorizontal(lipgloss.Top, results, preview))
+}
+
+// results is the content of the results panel.
+func (m *Model) results(rows int) string {
+	w, _ := kit.BoxInner(m.listWidth(), 0)
 	switch {
 	case m.err != nil:
-		list = kit.Error.Render(kit.Truncate(m.err.Error(), m.listWidth()))
+		return kit.Error.Render(kit.Truncate(m.err.Error(), w))
 	case strings.TrimSpace(m.input.Value()) == "":
-		list = kit.Muted.Render("Typ om te zoeken.")
+		return kit.Muted.Render("Typ om te zoeken.")
 	case len(m.hits) == 0:
-		list = kit.Muted.Render("Geen resultaten.")
-	default:
-		list = m.hitList(rows)
+		return kit.Muted.Render("Geen resultaten.")
 	}
-	left := lipgloss.NewStyle().Width(m.listWidth()).Height(rows).MaxHeight(rows).Render(list)
-	sep := kit.Divider.Render(strings.TrimSuffix(strings.Repeat("│\n", max(rows, 1)), "\n"))
-	body := lipgloss.JoinHorizontal(lipgloss.Top, left, " ", sep, " ", m.preview.View())
-	return lipgloss.JoinVertical(lipgloss.Left, m.input.View(), "", body)
+	return m.hitList(rows, w)
+}
+
+// perPage is the number of hits the results panel shows at once.
+func (m *Model) perPage() int {
+	_, rows := kit.BoxInner(m.listWidth(), m.panelHeight())
+	return max(rows/2, 1)
 }
 
 // hitList shows two lines per hit, scrolled so the selection stays visible.
-func (m *Model) hitList(rows int) string {
+func (m *Model) hitList(rows, w int) string {
 	per := max(rows/2, 1)
 	first := max(m.cursor-per+1, 0)
-	w := m.listWidth()
 	var b strings.Builder
 	for i := first; i < len(m.hits) && i < first+per; i++ {
 		h := m.hits[i]

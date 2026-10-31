@@ -20,12 +20,14 @@ func cmdTUI(opts *options) *cobra.Command {
 		Long: `Opens the selected vault in a full-screen terminal UI with four tabs:
 
   1 Search      results while you type ("#tag" filters), the note rendered beside them
-  2 Today       the journal note of a day; ←/→ browse days
-  3 Agenda      the weekly agenda, day by day, opened at today; ←/→ browse weeks
-  4 Reminders   add (a), tick off (x), plan into the agenda (p), show done ones (.)
+  2 Today       the journal note of a day; [ and ] browse days
+  3 Agenda      the weekly agenda, day by day, opened at today; [ and ] browse weeks
+  4 Reminders   add (ctrl+n), tick off (x), plan into the agenda (p), show done ones (.)
 
-e opens what is shown in $VISUAL / $EDITOR; the UI comes back when the editor
-closes. tab or 1-4 switch tabs, q or ctrl+c quits.
+The keys follow superfile's defaults: j/k or arrows move, enter/l/right opens,
+h/left/backspace goes back, tab/L and H switch panels, / searches, f toggles the
+preview, e opens what is shown in $VISUAL / $EDITOR, ? lists every key, q/esc
+quits. While typing, enter confirms and esc/ctrl+c cancels. 1-4 switch tabs.
 
 Needs an interactive terminal; scripts and agents use the other commands.`,
 		Args: cobra.NoArgs,

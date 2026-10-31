@@ -3,6 +3,7 @@ package kit
 import (
 	"strings"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -13,7 +14,7 @@ import (
 const paneChrome = 2
 
 // Pane shows a note rendered as Markdown under a heading, scrollable with the
-// usual keys (arrows, j/k, pgup/pgdn, space).
+// list and page keys.
 type Pane struct {
 	md       Markdown
 	vp       viewport.Model
@@ -61,11 +62,23 @@ func (p *Pane) ScrollTo(text string) {
 	}
 }
 
-// Update scrolls on keys.
-func (p *Pane) Update(msg tea.Msg) tea.Cmd {
-	var cmd tea.Cmd
-	p.vp, cmd = p.vp.Update(msg)
-	return cmd
+// Scroll scrolls on the list and page keys and reports whether msg was one.
+// The viewport's own keys are not used: they would take h, l and f, which
+// mean something else here.
+func (p *Pane) Scroll(msg tea.KeyMsg) bool {
+	switch {
+	case key.Matches(msg, Keys.ListUp):
+		p.vp.ScrollUp(1)
+	case key.Matches(msg, Keys.ListDown):
+		p.vp.ScrollDown(1)
+	case key.Matches(msg, Keys.PageUp):
+		p.vp.PageUp()
+	case key.Matches(msg, Keys.PageDown):
+		p.vp.PageDown()
+	default:
+		return false
+	}
+	return true
 }
 
 func (p *Pane) render() {

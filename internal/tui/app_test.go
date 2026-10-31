@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/amavis442/noot/internal/tui/kit"
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -29,7 +30,9 @@ func (f *fakeView) Update(msg tea.Msg) tea.Cmd { f.msgs = append(f.msgs, msg); r
 func (f *fakeView) View() string               { return "body of " + f.title }
 func (f *fakeView) SetSize(w, h int)           { f.w, f.h = w, h }
 func (f *fakeView) Capturing() bool            { return f.capturing }
-func (f *fakeView) Help() string               { return "keys of " + f.title }
+func (f *fakeView) Help() []key.Binding {
+	return []key.Binding{key.NewBinding(key.WithKeys("z"), key.WithHelp("z", "keys of "+f.title))}
+}
 
 func newTestApp() (Model, []*fakeView) {
 	views := []*fakeView{{title: "Zoeken"}, {title: "Vandaag"}, {title: "Agenda"}}
@@ -40,7 +43,7 @@ func newTestApp() (Model, []*fakeView) {
 	return New("persoonlijk", kv...), views
 }
 
-func key(s string) tea.KeyMsg {
+func press(s string) tea.KeyMsg {
 	switch s {
 	case "tab":
 		return tea.KeyMsg{Type: tea.KeyTab}
@@ -48,6 +51,8 @@ func key(s string) tea.KeyMsg {
 		return tea.KeyMsg{Type: tea.KeyShiftTab}
 	case "ctrl+c":
 		return tea.KeyMsg{Type: tea.KeyCtrlC}
+	case "esc":
+		return tea.KeyMsg{Type: tea.KeyEsc}
 	}
 	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)}
 }
@@ -86,28 +91,28 @@ func TestWindowSizeGoesToEveryViewMinusChrome(t *testing.T) {
 	}
 }
 
-func TestNumberKeysAndTabSwitchViewsAndReload(t *testing.T) {
+func TestNumberKeysSwitchViewsAndReload(t *testing.T) {
 	m, views := newTestApp()
-	m, cmd := update(t, m, key("3"))
+	m, cmd := update(t, m, press("3"))
 	if m.active != 2 || views[2].inits != 1 || cmd == nil {
 		t.Fatalf("3: active %d, inits %d", m.active, views[2].inits)
 	}
-	m, _ = update(t, m, key("tab"))
-	if m.active != 0 {
-		t.Fatalf("tab wraps to the first view, active %d", m.active)
-	}
-	m, _ = update(t, m, key("shift+tab"))
-	if m.active != 2 {
-		t.Fatalf("shift+tab wraps to the last view, active %d", m.active)
-	}
-	if m, _ = update(t, m, key("9")); m.active != 2 {
+	if m, _ = update(t, m, press("9")); m.active != 2 {
 		t.Fatal("a number without a tab changes nothing")
 	}
 }
 
+func TestTabBelongsToTheView(t *testing.T) {
+	m, views := newTestApp()
+	m, _ = update(t, m, press("tab"))
+	m, _ = update(t, m, press("shift+tab"))
+	if m.active != 0 || len(views[0].msgs) != 2 {
+		t.Fatalf("tab and shift+tab switch panels inside the view: active %d, msgs %v", m.active, views[0].msgs)
+	}
+}
 func TestKeysGoToTheActiveViewOnly(t *testing.T) {
 	m, views := newTestApp()
-	update(t, m, key("j"))
+	update(t, m, press("j"))
 	if len(views[0].msgs) != 1 || len(views[1].msgs) != 0 {
 		t.Fatalf("msgs: %v / %v", views[0].msgs, views[1].msgs)
 	}
@@ -130,7 +135,7 @@ func TestEditorErrorsShowUntilTheNextKey(t *testing.T) {
 	if out := m.View(); !strings.Contains(out, `"vim": not found`) {
 		t.Fatalf("editor error missing:\n%s", out)
 	}
-	m, _ = update(t, m, key("j"))
+	m, _ = update(t, m, press("j"))
 	if out := m.View(); strings.Contains(out, "not found") {
 		t.Fatalf("error still shown after a key:\n%s", out)
 	}
@@ -138,27 +143,45 @@ func TestEditorErrorsShowUntilTheNextKey(t *testing.T) {
 
 func TestQuitUnlessAViewCaptures(t *testing.T) {
 	m, views := newTestApp()
-	if _, cmd := update(t, m, key("q")); !isQuit(cmd) {
-		t.Fatal("q quits")
+	for _, k := range []string{"q", "esc", "ctrl+c"} {
+		if _, cmd := update(t, m, press(k)); !isQuit(cmd) {
+			t.Fatalf("%s quits", k)
+		}
 	}
 	views[0].capturing = true
-	if _, cmd := update(t, m, key("q")); isQuit(cmd) || len(views[0].msgs) != 1 {
-		t.Fatal("q is typed while the view captures")
-	}
-	if m2, _ := update(t, m, key("2")); m2.active != 0 {
-		t.Fatal("2 is typed while the view captures")
-	}
-	if _, cmd := update(t, m, key("ctrl+c")); !isQuit(cmd) {
-		t.Fatal("ctrl+c always quits")
+	for _, k := range []string{"q", "esc", "ctrl+c", "2", "?"} {
+		before := len(views[0].msgs)
+		m2, cmd := update(t, m, press(k))
+		if isQuit(cmd) || m2.active != 0 || m2.help || len(views[0].msgs) != before+1 {
+			t.Fatalf("%s goes to the view while it captures", k)
+		}
 	}
 }
 
+func TestHelpOverlayListsAllKeys(t *testing.T) {
+	m, views := newTestApp()
+	m, _ = update(t, m, tea.WindowSizeMsg{Width: 100, Height: 30})
+	m, _ = update(t, m, press("?"))
+	out := m.View()
+	for _, want := range []string{"keys of Zoeken", "1-4", "q/esc", "?"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("help lacks %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "body of Zoeken") {
+		t.Fatalf("help replaces the view:\n%s", out)
+	}
+	m, cmd := update(t, m, press("esc"))
+	if isQuit(cmd) || m.help || len(views[0].msgs) != 0 {
+		t.Fatal("any key closes the help, without reaching the view or quitting")
+	}
+}
 func TestViewShowsTabsActiveBodyAndHelp(t *testing.T) {
 	m, _ := newTestApp()
 	m, _ = update(t, m, tea.WindowSizeMsg{Width: 100, Height: 30})
-	m, _ = update(t, m, key("2"))
+	m, _ = update(t, m, press("2"))
 	out := m.View()
-	for _, want := range []string{"noot", "persoonlijk", "1 Zoeken", "2 Vandaag", "3 Agenda", "body of Vandaag", "keys of Vandaag", "q stop"} {
+	for _, want := range []string{"noot", "persoonlijk", "1 Zoeken", "2 Vandaag", "3 Agenda", "body of Vandaag", "keys of Vandaag", "? alle toetsen"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("view lacks %q:\n%s", want, out)
 		}

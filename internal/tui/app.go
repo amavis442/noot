@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/amavis442/noot/internal/tui/kit"
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -23,6 +24,7 @@ type Model struct {
 	width  int
 	height int
 	notice error // shown on the help line until the next key
+	help   bool  // the ? overlay with every key is open
 }
 
 // New returns the root model showing views as tabs, the first one active.
@@ -57,28 +59,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
+// key handles the root's keys. While the view captures the keyboard, every
+// key is the view's, ctrl+c included: superfile's typing keys win over all.
 func (m Model) key(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "ctrl+c":
+	v := m.views[m.active]
+	switch {
+	case m.help:
+		m.help = false
+		return m, nil
+	case v.Capturing():
+		return m, v.Update(msg)
+	case key.Matches(msg, kit.Keys.Quit), msg.String() == "ctrl+c":
 		return m, tea.Quit
-	case "tab":
-		return m.open((m.active + 1) % len(m.views))
-	case "shift+tab":
-		return m.open((m.active + len(m.views) - 1) % len(m.views))
-	}
-	if !m.views[m.active].Capturing() {
-		s := msg.String()
-		if s == "q" {
-			return m, tea.Quit
+	case key.Matches(msg, kit.Keys.Help):
+		m.help = true
+		return m, nil
+	case key.Matches(msg, kit.Keys.Tabs):
+		if i := int(msg.String()[0] - '1'); i < len(m.views) {
+			return m.open(i)
 		}
-		if len(s) == 1 && s[0] >= '1' && s[0] <= '9' {
-			if i := int(s[0] - '1'); i < len(m.views) {
-				return m.open(i)
-			}
-			return m, nil
-		}
+		return m, nil
 	}
-	return m, m.views[m.active].Update(msg)
+	return m, v.Update(msg)
+}
+
+// globalKeys are the root's keys, for the help line and the overlay.
+func globalKeys() []key.Binding {
+	return []key.Binding{kit.Keys.Help, kit.Keys.Tabs, kit.Keys.Quit}
 }
 
 // open makes view i the active tab and reloads it.
@@ -104,15 +111,32 @@ func (m Model) View() string {
 	}
 	bar := lipgloss.JoinHorizontal(lipgloss.Top, tabs...)
 	divider := kit.Divider.Render(strings.Repeat("─", max(m.width, 1)))
-	body := lipgloss.NewStyle().Height(max(m.height-chromeHeight, 1)).MaxHeight(max(m.height-chromeHeight, 1)).
-		Render(m.views[m.active].View())
-	keys := " · tab/1-" + fmt.Sprint(len(m.views)) + " wissel · q stop"
-	if m.views[m.active].Capturing() {
-		keys = " · tab wissel · ctrl+c stop"
+	height := max(m.height-chromeHeight, 1)
+	content := m.views[m.active].View()
+	if m.help {
+		content = m.helpOverlay()
 	}
-	help := kit.Help.Render(m.views[m.active].Help() + keys)
+	body := lipgloss.NewStyle().Height(height).MaxHeight(height).Render(content)
+	// The root's keys come first, so ? stays in sight on a narrow terminal.
+	keys := append(globalKeys(), m.views[m.active].Help()...)
+	if m.views[m.active].Capturing() {
+		keys = m.views[m.active].Help()
+	}
+	help := kit.Help.Render(kit.Short(keys...))
 	if m.notice != nil {
 		help = kit.Error.Render("editor: " + m.notice.Error())
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, bar, divider, body, kit.Truncate(help, max(m.width, 1)))
+}
+
+// helpOverlay lists every key of the active view and of the root.
+func (m Model) helpOverlay() string {
+	var b strings.Builder
+	b.WriteString(kit.Heading.Render("Toetsen · "+m.views[m.active].Title()) + "\n\n")
+	for _, k := range append(m.views[m.active].Help(), globalKeys()...) {
+		h := k.Help()
+		fmt.Fprintf(&b, "  %s  %s\n", kit.Selected.Render(fmt.Sprintf("%-12s", h.Key)), h.Desc)
+	}
+	b.WriteString("\n" + kit.Muted.Render("Toetsen volgen superfile. Een willekeurige toets sluit dit."))
+	return b.String()
 }
