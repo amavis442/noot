@@ -9,14 +9,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"regexp"
-	"runtime"
 	"runtime/debug"
 	"strings"
 
 	"github.com/amavis442/noot/internal/app"
 	"github.com/amavis442/noot/internal/config"
+	"github.com/amavis442/noot/internal/editor"
 	"github.com/amavis442/noot/internal/storage/sqlite"
 	"github.com/amavis442/noot/internal/vault"
 	"github.com/spf13/cobra"
@@ -130,6 +129,7 @@ Vault selection, first match wins:
 		cmdStatus(opts),
 		cmdWatch(opts),
 		cmdServe(opts),
+		cmdTUI(opts),
 	)
 	return root
 }
@@ -217,19 +217,7 @@ func (e *env) json(v any) error {
 
 // openInEditor opens a file in $VISUAL / $EDITOR (falls back to notepad / vi).
 func openInEditor(file string) error {
-	ed := os.Getenv("VISUAL")
-	if ed == "" {
-		ed = os.Getenv("EDITOR")
-	}
-	if ed == "" {
-		if runtime.GOOS == "windows" {
-			ed = "notepad"
-		} else {
-			ed = "vi"
-		}
-	}
-	parts := strings.Fields(ed) // allows EDITOR="code -w"
-	c := exec.Command(parts[0], append(parts[1:], file)...)
+	c := editor.Command(file)
 	c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
 	return c.Run()
 }

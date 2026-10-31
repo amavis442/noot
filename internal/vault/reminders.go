@@ -277,9 +277,9 @@ func (v *Vault) updateReminder(n int, fn func(r *Reminder) error) (Reminder, err
 	return Reminder{}, fmt.Errorf("no reminder %d", n)
 }
 
-// dutchWeekdays are indexed by time.Weekday; the first two letters are the
+// DutchWeekdays are indexed by time.Weekday; the first two letters are the
 // usual abbreviation (ma, di, wo …).
-var dutchWeekdays = [7]string{"zondag", "maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag"}
+var DutchWeekdays = [7]string{"zondag", "maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag"}
 
 // ParseDay understands YYYY-MM-DD, today, tomorrow, +N or +Nd (days from now)
 // and weekday names (monday or mon: the next one after today). The Dutch words
@@ -302,7 +302,7 @@ func ParseDay(s string, now time.Time) (time.Time, error) {
 		return today.AddDate(0, 0, days), nil
 	}
 	for wd := time.Sunday; wd <= time.Saturday; wd++ {
-		name, nl := strings.ToLower(wd.String()), dutchWeekdays[wd]
+		name, nl := strings.ToLower(wd.String()), DutchWeekdays[wd]
 		if (len(s) >= 3 && strings.HasPrefix(name, s)) || s == nl || s == nl[:2] {
 			ahead := (int(wd) - int(today.Weekday()) + 7) % 7
 			if ahead == 0 {

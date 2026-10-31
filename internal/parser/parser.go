@@ -69,6 +69,16 @@ func Parse(relPath string, content []byte) (domain.Note, error) {
 
 type frontmatter map[string]any
 
+// Body returns content without its frontmatter. Content whose frontmatter is
+// not valid YAML is returned as it is, so nothing is hidden from the reader.
+func Body(content []byte) []byte {
+	_, body, err := splitFrontmatter(content)
+	if err != nil {
+		return content
+	}
+	return body
+}
+
 func splitFrontmatter(src []byte) (frontmatter, []byte, error) {
 	src = bytes.TrimPrefix(src, []byte("\xef\xbb\xbf")) // UTF-8 BOM (Windows editors)
 	nl := []byte("\n")
