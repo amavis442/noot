@@ -138,7 +138,7 @@ noot -A serve --addr 127.0.0.1:8080
 - **Elke notitie bewerken** met *Bewerken*: je bewerkt het hele bestand, frontmatter inbegrepen, met een voorbeeld ernaast dat meeloopt terwijl je typt. Is het bestand intussen buiten de UI gewijzigd (in je editor, of door `noot pull`), dan weigert opslaan en houdt de UI je tekst vast; *Herladen* haalt de versie van schijf op.
 - **Een nieuwe notitie maken** met een titel en optioneel tekst en tags. Nieuwe notities komen in `zettels/`.
 - **De dagnotitie** onder *Vandaag*, net als `noot today`, met bladeren naar de vorige en volgende dag.
-- **De weekagenda** onder *Agenda*, net als `noot agenda`, met bladeren per week. De week wordt aangemaakt als hij nog niet bestaat.
+- **De weekagenda** onder *Agenda*, net als `noot agenda`, met bladeren per week. De week wordt aangemaakt als hij nog niet bestaat. Elke dag heeft een eigen *Bewerken*: je bewerkt alleen die dag, terwijl hij in het weekbestand blijft staan. Opslaan weigert alleen als juist die dag intussen elders is gewijzigd; een wijziging op een andere dag (zoals een ingeplande reminder) blijft gewoon staan. Met *Hele week bewerken* bewerk je het hele bestand.
 - **Reminders beheren** onder *Reminders*, net als `noot reminder`: toevoegen met een uiterste datum, afvinken en inplannen in de weekagenda. Een dag schrijf je zoals op de commandoregel: `2026-11-06`, `vandaag`, `morgen`, `+3` of `vrijdag`.
 
 De API, voor scripts:
@@ -151,7 +151,8 @@ De API, voor scripts:
 | `POST /api/notes` | Nieuwe notitie; body `{"title": "…", "body": "…", "tags": ["…"]}` |
 | `POST /api/preview` | Niet-opgeslagen tekst renderen zoals de notitie eruit komt te zien; body `{"path": "…", "content": "…"}`, antwoord `{"html": "…"}`. Leest en schrijft geen bestanden |
 | `GET /api/journal/{dag}` | Dagnotitie (wordt aangemaakt als hij ontbreekt), zoals een notitie plus `date`; `{dag}` mag ook `vandaag` zijn. Opslaan gaat via `PUT /api/notes/{pad}` |
-| `GET /api/agenda/{dag}` | Weekagenda van de week waarin `{dag}` valt (wordt aangemaakt als hij ontbreekt), plus `week` en `monday` |
+| `GET /api/agenda/{dag}` | Weekagenda van de week waarin `{dag}` valt (wordt aangemaakt als hij ontbreekt), plus `week`, `monday`, `intro_html` en `days` (per dag `date`, `heading`, `content`, `html` en `version`) |
+| `PUT /api/agenda/{dag}/day` | Eén dag van de agenda opslaan; body `{"content": "…", "version": "…"}` met de `version` van die dag. Geeft `409` als die dag na het laden is gewijzigd |
 | `GET /api/reminders?all=true` | Reminders, net als `noot reminder --json` (zonder `all` alleen de open) |
 | `POST /api/reminders` | Reminder toevoegen; body `{"text": "…", "due": "vrijdag"}` (`due` is optioneel) |
 | `POST /api/reminders/{n}/done` | Reminder `n` afvinken (body `{}`) |

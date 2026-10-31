@@ -69,6 +69,20 @@ export interface JournalDay extends Note {
 export interface AgendaWeek extends Note {
   week: string; // e.g. 2026-W45
   monday: string; // YYYY-MM-DD
+  /** The text before the first day, rendered. */
+  intro_html: string;
+  days: AgendaDay[];
+}
+
+/** One day of an agenda, to edit on its own. */
+export interface AgendaDay {
+  date: string; // YYYY-MM-DD
+  heading: string; // e.g. "Monday 2 November"
+  /** The text under the day's heading. */
+  content: string;
+  html: string;
+  /** Identifies the loaded text; saveAgendaDay sends it back. */
+  version: string;
 }
 
 /** A line of reminders.md; n is its number, as the CLI shows it. */
@@ -103,6 +117,14 @@ export function getJournal(day: string, signal?: AbortSignal): Promise<JournalDa
 /** The agenda of the week day falls in; day takes the same words as getJournal. */
 export function getAgenda(day: string, signal?: AbortSignal): Promise<AgendaWeek> {
   return request(`/api/agenda/${encodeURIComponent(day)}`, { signal });
+}
+
+/**
+ * Replaces the text of one agenda day. Fails with status 409 when that day
+ * changed after it was loaded at version; other days do not matter.
+ */
+export function saveAgendaDay(date: string, content: string, version: string): Promise<AgendaDay> {
+  return sendJSON("PUT", `/api/agenda/${encodeURIComponent(date)}/day`, { content, version });
 }
 
 /**

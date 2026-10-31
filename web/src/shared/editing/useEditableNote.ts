@@ -14,6 +14,8 @@ export interface EditableNoteState<T extends Note> {
   save: (content: string) => Promise<boolean>;
   /** Loads the note again, dropping a conflict. */
   reload: () => void;
+  /** Loads the note again while the current one stays on screen. */
+  refresh: () => Promise<void>;
 }
 
 /**
@@ -62,5 +64,13 @@ export function useEditableNote<T extends Note>(key: string, load: NoteLoader<T>
     }
   }
 
-  return { note, error, conflict, saving, save, reload: () => setLoads((n) => n + 1) };
+  async function refresh() {
+    try {
+      setNote(await load(key, new AbortController().signal));
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }
+
+  return { note, error, conflict, saving, save, reload: () => setLoads((n) => n + 1), refresh };
 }
