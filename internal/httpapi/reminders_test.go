@@ -47,7 +47,9 @@ func (f *fakeReminders) PlanReminder(n int, day time.Time) (vault.Reminder, stri
 }
 
 func remindersAPI(r *fakeReminders) http.Handler {
-	return New(Ports{Notes: &fakeNotes{}, Journal: &fakeJournal{}, Reminders: r}, fstest.MapFS{})
+	p := testPorts()
+	p.Reminders = r
+	return New(p, fstest.MapFS{})
 }
 
 func TestListReminders(t *testing.T) {

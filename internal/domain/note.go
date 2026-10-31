@@ -98,6 +98,7 @@ type LogExcerpt struct {
 type Document struct {
 	NoteRef
 	Content string `json:"content"`
+	Version string `json:"version"` // changes whenever the content does; saving checks it
 }
 
 // NoteContext is what is worth reading before working on a note: the note

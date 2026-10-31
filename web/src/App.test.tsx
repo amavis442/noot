@@ -33,11 +33,19 @@ describe("App", () => {
     render(<App />);
     expect(screen.getByRole("link", { name: /vandaag/i })).toHaveAttribute("href", "#/journal");
     expect(screen.getByRole("link", { name: /reminders/i })).toHaveAttribute("href", "#/reminders");
+    expect(screen.getByRole("link", { name: /agenda/i })).toHaveAttribute("href", "#/agenda");
 
     go("#/journal");
     expect(await screen.findByRole("heading", { name: "Dag" })).toBeInTheDocument();
 
     go("#/reminders");
     expect(await screen.findByText(/geen open reminders/i)).toBeInTheDocument();
+  });
+
+  it("routes to this week's agenda", async () => {
+    stubFetch({ body: { week: "2026-W44", monday: "2026-10-26", id: "W", path: "agenda/2026-W44.md", title: "", version: "w", content: "", html: "<h1>Week 44</h1>" } });
+    render(<App />);
+    go("#/agenda");
+    expect(await screen.findByRole("heading", { name: "Week 44" })).toBeInTheDocument();
   });
 });

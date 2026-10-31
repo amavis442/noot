@@ -34,7 +34,7 @@ On a loopback address (the default) only requests for localhost are served.`,
 				if err != nil {
 					return err
 				}
-				h := httpapi.New(httpapi.Ports{Notes: e.svc, Journal: e.svc, Reminders: e.svc}, web.Dist())
+				h := httpapi.New(httpapi.Ports{Notes: e.svc, Journal: e.svc, Agenda: e.svc, Reminders: e.svc}, web.Dist())
 				if tcp, ok := ln.Addr().(*net.TCPAddr); ok && tcp.IP.IsLoopback() {
 					h = httpapi.LoopbackOnly(h)
 				}
