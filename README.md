@@ -153,7 +153,7 @@ Daarnaast, waar superfile niets voor heeft: `J`/`K` (`shift+↓`/`↑`) om de pr
 
 | Tab | Wat |
 |---|---|
-| **1 Zoeken** | Een zoekbalk met twee panelen eronder: de resultaten, die bijwerken terwijl je typt, en de gekozen notitie opgemaakt. `#tag` in de zoekopdracht filtert op tag. Na het typen brengt `tab`, `enter` of `esc` je naar de resultaten, die de pijltjes houden; de preview krijgt nooit de focus, net als in superfile. Het paneel met de focus heeft een gekleurde rand |
+| **1 Zoeken** | Druk `/` om te zoeken; zoals in superfile heeft de zoekbalk bij het opstarten nog geen focus, zodat `1`-`4` meteen van tab wisselen. Een zoekbalk met twee panelen eronder: de resultaten, die bijwerken terwijl je typt, en de gekozen notitie opgemaakt. `#tag` in de zoekopdracht filtert op tag. Na het typen brengt `tab`, `enter` of `esc` je naar de resultaten, die de pijltjes houden; de preview krijgt nooit de focus, net als in superfile. Het paneel met de focus heeft een gekleurde rand |
 | **2 Vandaag** | De dagnotitie (wordt aangemaakt als hij ontbreekt) |
 | **3 Agenda** | De weekagenda per dag, geopend bij vandaag. Met `↑`/`↓` (`j`/`k`) kies je een dag; `e` opent alleen die dag in je editor en slaat hem daarna op in het weekbestand, net als *Bewerken* per dag in de web-UI. Is die dag intussen elders gewijzigd, dan wordt er niets overschreven en houdt de TUI je tekst vast: `e` opent jouw versie opnieuw. `E` bewerkt de hele week |
 | **4 Herinneringen** | De open reminders, te laat in het rood. Bij `ctrl+n` volgt na de tekst een uiterste datum (leeg is geen), bij `p` de dag (leeg is vandaag) |

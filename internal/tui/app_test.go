@@ -1,11 +1,14 @@
 package tui
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/amavis442/noot/internal/tui/kit"
+	"github.com/amavis442/noot/internal/tui/kit/kittest"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -188,5 +191,16 @@ func TestViewShowsTabsActiveBodyAndHelp(t *testing.T) {
 	}
 	if strings.Contains(out, "body of Zoeken") {
 		t.Fatal("only the active view is shown")
+	}
+}
+
+// TestNumberAtStartupOpensThatTab runs the real tabs: the search bar must not
+// have the keyboard at startup, or 2 would be typed into it.
+func TestNumberAtStartupOpensThatTab(t *testing.T) {
+	views := Views(context.Background(), Ports{}, Options{Editor: &kittest.Editor{}, Markdown: kit.Plain{}, Now: time.Now})
+	m := New("test", views...)
+	m, _ = update(t, m, press("2"))
+	if m.active != 1 {
+		t.Fatalf("2 at startup opens tab 2, active = %d", m.active)
 	}
 }

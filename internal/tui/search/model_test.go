@@ -75,10 +75,10 @@ func newModel() (*search.Model, *fakeNotes, *kittest.Editor) {
 func TestTypingSearchesLiveAndPreviewsTheFirstHit(t *testing.T) {
 	m, _, _ := newModel()
 	kittest.Run(t, m, m.Init())
-	if !m.Capturing() {
-		t.Fatal("the search field has the keyboard at first")
+	if m.Capturing() {
+		t.Fatal("the search bar has no keyboard at first, so 1-4 switch tabs")
 	}
-	kittest.Type(t, m, "rogge")
+	kittest.Type(t, m, "/", "rogge")
 	out := m.View()
 	for _, want := range []string{"brood", "zuurdesem", "Voeden met rogge"} {
 		if !strings.Contains(out, want) {
@@ -93,7 +93,7 @@ func TestTypingSearchesLiveAndPreviewsTheFirstHit(t *testing.T) {
 func TestMovingTheSelectionChangesThePreview(t *testing.T) {
 	m, _, _ := newModel()
 	kittest.Run(t, m, m.Init())
-	kittest.Type(t, m, "rogge", "down")
+	kittest.Type(t, m, "/", "rogge", "down")
 	if out := m.View(); !strings.Contains(out, "Ook rogge, en spelt") {
 		t.Fatalf("down previews the second hit:\n%s", out)
 	}
@@ -105,7 +105,7 @@ func TestMovingTheSelectionChangesThePreview(t *testing.T) {
 
 func TestHashWordsBecomeTags(t *testing.T) {
 	m, notes, _ := newModel()
-	kittest.Type(t, m, "rogge #bakken")
+	kittest.Type(t, m, "/", "rogge #bakken")
 	q := notes.queries[len(notes.queries)-1]
 	if q.Text != "rogge" || !slices.Equal(q.Tags, []string{"bakken"}) {
 		t.Fatalf("query = %+v", q)
@@ -115,6 +115,7 @@ func TestHashWordsBecomeTags(t *testing.T) {
 func TestStaleResultsAreDropped(t *testing.T) {
 	m, _, _ := newModel()
 	// Typing "ko" fires two searches; only the answer for "ko" may show.
+	kittest.Type(t, m, "/")
 	first := m.Update(kittest.Key("k"))
 	second := m.Update(kittest.Key("o"))
 	kittest.Run(t, m, second)
@@ -126,7 +127,7 @@ func TestStaleResultsAreDropped(t *testing.T) {
 
 func TestEditOpensTheSelectedNoteAndRefreshes(t *testing.T) {
 	m, notes, ed := newModel()
-	kittest.Type(t, m, "Bonen", "enter")
+	kittest.Type(t, m, "/", "Bonen", "enter")
 	if m.Capturing() {
 		t.Fatal("enter moves the keyboard to the results")
 	}
@@ -149,7 +150,7 @@ func TestEditOpensTheSelectedNoteAndRefreshes(t *testing.T) {
 
 func TestRefreshKeepsTheSelection(t *testing.T) {
 	m, _, ed := newModel()
-	kittest.Type(t, m, "rogge", "down", "enter", "e")
+	kittest.Type(t, m, "/", "rogge", "down", "enter", "e")
 	if !slices.Equal(ed.Opened, []string{"zuurdesem.md"}) {
 		t.Fatalf("opened %v", ed.Opened)
 	}
@@ -162,10 +163,10 @@ func TestRefreshKeepsTheSelection(t *testing.T) {
 func TestEmptyQueryAndErrorsAreShown(t *testing.T) {
 	m, notes, _ := newModel()
 	kittest.Run(t, m, m.Init())
-	if out := m.View(); !strings.Contains(out, "Typ om te zoeken") {
+	if out := m.View(); !strings.Contains(out, "Druk / om te zoeken") {
 		t.Fatalf("hint missing:\n%s", out)
 	}
-	kittest.Type(t, m, "xyz")
+	kittest.Type(t, m, "/", "xyz")
 	if out := m.View(); !strings.Contains(out, "Geen resultaten") {
 		t.Fatalf("no-results message missing:\n%s", out)
 	}
@@ -182,7 +183,7 @@ func TestEmptyQueryAndErrorsAreShown(t *testing.T) {
 
 func TestTabLeavesTheSearchBarToPickAResult(t *testing.T) {
 	m, _, ed := newModel()
-	kittest.Type(t, m, "rogge", "tab")
+	kittest.Type(t, m, "/", "rogge", "tab")
 	if m.Capturing() {
 		t.Fatal("tab moves the keyboard from the search bar to the results")
 	}
@@ -200,7 +201,7 @@ func TestTabLeavesTheSearchBarToPickAResult(t *testing.T) {
 // open the selected item and the list keeps the keyboard.
 func TestConfirmOpensAndTheListKeepsTheArrows(t *testing.T) {
 	m, _, ed := newModel()
-	kittest.Type(t, m, "rogge", "tab")
+	kittest.Type(t, m, "/", "rogge", "tab")
 	kittest.Type(t, m, "enter", "down", "l", "up", "right", "j", "k")
 	if want := []string{"brood.md", "zuurdesem.md", "brood.md"}; !slices.Equal(ed.Opened, want) {
 		t.Fatalf("opened %v, want %v", ed.Opened, want)
@@ -217,7 +218,7 @@ func TestShiftArrowsScrollThePreview(t *testing.T) {
 		lines = append(lines, fmt.Sprintf("regel %d", i))
 	}
 	notes.notes["lang.md"] = strings.Join(lines, "\n\n")
-	kittest.Type(t, m, "regel", "tab", "J", "J", "shift+down")
+	kittest.Type(t, m, "/", "regel", "tab", "J", "J", "shift+down")
 	if out := m.View(); strings.Contains(out, "regel 1 ") || !strings.Contains(out, "regel 4") {
 		t.Fatalf("J and shift+down scroll the preview:\n%s", out)
 	}
@@ -229,7 +230,7 @@ func TestShiftArrowsScrollThePreview(t *testing.T) {
 
 func TestTabAndHSwitchBetweenSearchBarAndResults(t *testing.T) {
 	m, _, _ := newModel()
-	kittest.Type(t, m, "rogge", "tab")
+	kittest.Type(t, m, "/", "rogge", "tab")
 	if m.Capturing() {
 		t.Fatal("tab goes from the search bar to the results")
 	}
@@ -248,7 +249,7 @@ func TestTabAndHSwitchBetweenSearchBarAndResults(t *testing.T) {
 }
 func TestFTogglesThePreview(t *testing.T) {
 	m, _, _ := newModel()
-	kittest.Type(t, m, "Bonen", "enter", "f")
+	kittest.Type(t, m, "/", "Bonen", "enter", "f")
 	if out := m.View(); strings.Contains(out, "# Koffie") || !strings.Contains(out, "koffie.md") {
 		t.Fatalf("f hides the preview, the results stay:\n%s", out)
 	}
@@ -260,6 +261,7 @@ func TestFTogglesThePreview(t *testing.T) {
 
 func TestHelpFollowsTheFocus(t *testing.T) {
 	m, _, _ := newModel()
+	kittest.Type(t, m, "/")
 	if got := kit.Short(m.Help()...); !strings.Contains(got, "tab naar resultaten") {
 		t.Fatalf("search bar help = %q", got)
 	}
@@ -273,7 +275,7 @@ func TestHelpFollowsTheFocus(t *testing.T) {
 // looked like two results, so one hit on one line, with the count on top.
 func TestOneLinePerHitAndACount(t *testing.T) {
 	m, _, _ := newModel()
-	kittest.Type(t, m, "Bonen")
+	kittest.Type(t, m, "/", "Bonen")
 	out := m.View()
 	if !strings.Contains(out, "1 resultaat") {
 		t.Fatalf("count missing:\n%s", out)

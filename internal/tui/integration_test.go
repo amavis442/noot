@@ -69,7 +69,7 @@ func finalView(t *testing.T, tm *teatest.TestModel) string {
 
 func TestSearchShowsTheNoteFromTheIndex(t *testing.T) {
 	tm := start(t, newVault(t), &kittest.Editor{})
-	tm.Type("rogge")
+	tm.Type("/rogge")
 	waitFor(t, tm, "Voeden met rogge")
 	out := finalView(t, tm)
 	if !strings.Contains(out, "zuurdesem.md") || strings.Contains(out, "title: Zuurdesem") {
@@ -91,7 +91,7 @@ func TestTabPicksASearchResult(t *testing.T) {
 	}
 	ed := &kittest.Editor{}
 	tm := start(t, svc, ed)
-	tm.Type("rogge")
+	tm.Type("/rogge")
 	waitFor(t, tm, "brood.md")
 	tm.Send(tea.KeyMsg{Type: tea.KeyTab})
 	tm.Type("je")
@@ -104,7 +104,6 @@ func TestTabPicksASearchResult(t *testing.T) {
 func TestJournalAndAgendaAreCreatedOnOpening(t *testing.T) {
 	svc := newVault(t)
 	tm := start(t, svc, &kittest.Editor{})
-	tm.Send(tea.KeyMsg{Type: tea.KeyEsc}) // stop typing in the search bar, so 2 switches tabs
 	tm.Type("2")
 	waitFor(t, tm, "zaterdag 31 oktober 2026")
 	tm.Type("3")
@@ -120,7 +119,6 @@ func TestJournalAndAgendaAreCreatedOnOpening(t *testing.T) {
 func TestRemindersAreAddedAndPlannedInTheVault(t *testing.T) {
 	svc := newVault(t)
 	tm := start(t, svc, &kittest.Editor{})
-	tm.Send(tea.KeyMsg{Type: tea.KeyEsc})
 	tm.Type("4")
 	waitFor(t, tm, "Geen open herinneringen")
 	tm.Send(tea.KeyMsg{Type: tea.KeyCtrlN})
@@ -148,7 +146,6 @@ func TestAgendaSavesOneDayInTheWeekFile(t *testing.T) {
 	svc := newVault(t)
 	ed := &kittest.Editor{Change: func(_, content string) string { return content + "\n- [ ] Kaas kopen" }}
 	tm := start(t, svc, ed)
-	tm.Send(tea.KeyMsg{Type: tea.KeyEsc})
 	tm.Type("3")
 	waitFor(t, tm, "Saturday 31 October")
 	tm.Type("je")

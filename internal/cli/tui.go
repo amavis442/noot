@@ -19,7 +19,8 @@ func cmdTUI(opts *options) *cobra.Command {
 		Short: "Interactive terminal UI: search, journal, agenda and reminders",
 		Long: `Opens the selected vault in a full-screen terminal UI with four tabs:
 
-  1 Search      results while you type ("#tag" filters), the note rendered beside them
+  1 Search      / opens the search bar; results while you type ("#tag" filters),
+                the note rendered beside them
   2 Today       the journal note of a day; [ and ] browse days
   3 Agenda      the weekly agenda, day by day, opened at today; [ and ] browse weeks,
                 arrows pick a day, e edits that day only, E the whole week

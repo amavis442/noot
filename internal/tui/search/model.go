@@ -76,14 +76,14 @@ type Model struct {
 	height      int
 }
 
-// New returns the search tab, typing in the search bar.
+// New returns the search tab. As in superfile, the search bar takes the
+// keyboard only after /, so 1-4 switch tabs right after startup.
 func New(ctx context.Context, notes Notes, md kit.Markdown, ed kit.Editor) *Model {
 	in := textinput.New()
 	in.Prompt = "/ "
 	in.Placeholder = "zoek in je notities, #tag filtert"
 	in.Cursor.SetMode(cursor.CursorStatic)
-	in.Focus()
-	return &Model{ctx: ctx, notes: notes, editor: ed, input: in, focus: onSearchBar, showPreview: true, preview: kit.NewPane(md)}
+	return &Model{ctx: ctx, notes: notes, editor: ed, input: in, focus: onResults, showPreview: true, preview: kit.NewPane(md)}
 }
 
 // Title is the tab's label.
@@ -330,8 +330,10 @@ func (m *Model) results(rows int) string {
 	switch {
 	case m.err != nil:
 		return kit.Error.Render(kit.Truncate(m.err.Error(), w))
-	case strings.TrimSpace(m.input.Value()) == "":
+	case strings.TrimSpace(m.input.Value()) == "" && m.focus == onSearchBar:
 		return kit.Muted.Render("Typ om te zoeken.")
+	case strings.TrimSpace(m.input.Value()) == "":
+		return kit.Muted.Render("Druk / om te zoeken.")
 	case len(m.hits) == 0:
 		return kit.Muted.Render("Geen resultaten.")
 	}
