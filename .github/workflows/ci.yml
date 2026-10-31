@@ -1,6 +1,7 @@
 # Runs on every pull request to main and on every push to main. The job names
 # ("format", "test (ubuntu-latest)", "test (windows-latest)") are the required
 # status checks in the main ruleset: renaming a job means updating the ruleset.
+# The "web" job builds and tests the React frontend in web/.
 name: CI
 
 on:
@@ -52,3 +53,22 @@ jobs:
       # go vet + unit, integration and e2e tests.
       - name: make test
         run: make test
+
+  web:
+    name: web
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      # Vitest + Testing Library.
+      - run: npm test
+      # Type check + production build into web/dist.
+      - run: npm run build

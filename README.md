@@ -16,12 +16,16 @@ make install                      # go install met versie-info → $GOPATH/bin
 |---|---|
 | `make` / `make build` | Build voor dit systeem; `.exe` wordt automatisch toegevoegd op Windows |
 | `make build-linux` / `make build-windows` | Cross-compile naar `bin/` |
-| `make dist` | Release-binaries in `dist/` voor linux en windows (amd64 + arm64) |
+| `make dist` | Release-binaries in `dist/` voor linux en windows (amd64 + arm64), met de web-frontend erin (bouwt eerst `make web`) |
 | `make test` | `go vet` + alle tests: unit, integratie (echte SQLite) en end-to-end (`e2e/`: bouwt de binary en draait elk commando tegen tijdelijke vaults) |
+| `make web` | Web-frontend bouwen naar `web/dist/`; de volgende `make` neemt hem op in de binary (Node.js nodig) |
+| `make web-test` | Frontend-tests (Vitest; Node.js nodig) |
 | `make run ARGS="search sqlite"` | Draaien zonder te installeren (`go run`) |
 | `make clean` / `fmt` / `tidy` / `help` | |
 
 De Makefile werkt met elke GNU make, op Linux en op Windows (native, MSYS2 of Git Bash), en vanuit cmd, PowerShell of bash. De recipes roepen alleen `go`, `make` en `echo` aan, dus het maakt niet uit welke shell make gebruikt. `noot --version` toont de git-commit die Go in de binary zet; voor een release geef je `make dist VERSION=v0.2.0` mee.
+
+Voor `make` en `make test` heb je geen Node.js nodig. Zonder `make web` toont `noot serve` op `/` alleen een melding dat de frontend niet is ingebouwd; de JSON-API werkt dan wel.
 
 Er is geen cgo nodig: de SQLite-driver (`ncruces/go-sqlite3`) draait als WebAssembly via wazero. Je hebt dus geen C-compiler nodig, en alle binaries zijn statisch.
 
@@ -107,6 +111,7 @@ Elk leescommando werkt de index eerst incrementeel bij (op basis van mtime en gr
 | `reminder plan <n> <dag>` | Reminder onder Planned van die dag in de weekagenda zetten (de agenda wordt zo nodig aangemaakt) |
 | `open <note> [--print]` | Notitie openen via id, pad, bestandsnaam, titel of alias |
 | `watch` | Index live bijhouden (Ctrl+C om te stoppen) |
+| `serve [--addr 127.0.0.1:4242]` | Web-UI om te zoeken, notities te lezen en nieuwe te maken, plus een JSON-API (zie [Web-UI](#web-ui)). Houdt de index live bij zoals `watch` |
 | `push [-m melding] [--no-pull]` | Alles committen en pushen: `git add -A`, commit, `pull --rebase`, `push` |
 | `pull` | Wijzigingen van elders binnenhalen (`pull --rebase --autostash`) en de index bijwerken |
 | `status` | Laten zien wat de volgende `push` meeneemt: gewijzigde bestanden (A/M/D) en commits die nog niet gepusht zijn. Kijkt alleen, zonder netwerk |
@@ -118,6 +123,40 @@ noot search --json repository | jq -r '.[].path' | fzf --preview 'bat --color=al
 ```
 
 `<note>` wordt in deze volgorde opgezocht: **id → pad → bestandsnaam → titel → alias**, zonder onderscheid tussen hoofd- en kleine letters. Diezelfde volgorde wordt gebruikt om `[[wikilinks]]` op te lossen.
+
+## Web-UI
+
+```bash
+make web && make                  # eenmalig: frontend bouwen en in de binary zetten
+noot serve                        # → http://127.0.0.1:4242
+noot -A serve --addr 127.0.0.1:8080
+```
+
+`noot serve` serveert de vault die je ook met elk ander commando kiest (`-V`, `-A`, de huidige map of de default). In de UI zoek je met dezelfde zoekopdracht als `noot search`, open je een notitie (wikilinks en Markdown-links zijn klikbaar) en maak je een nieuwe notitie met een titel, optioneel tekst en tags. Nieuwe notities komen in `zettels/`.
+
+De API, voor scripts:
+
+| Endpoint | Wat |
+|---|---|
+| `GET /api/search?q=…&tag=…&limit=…` | Zoekresultaten, net als `noot search --json` |
+| `GET /api/notes/{ref}` | Notitie via id, pad, bestandsnaam, titel of alias: `content` (het bestand) en `html` (gerenderd) |
+| `POST /api/notes` | Nieuwe notitie; body `{"title": "…", "body": "…", "tags": ["…"]}` als `application/json` |
+
+Op een loopback-adres (de standaard) beantwoordt de server alleen verzoeken voor `localhost`/`127.0.0.1`. Dat beschermt tegen DNS-rebinding. `POST` accepteert alleen JSON, zodat andere sites geen notities kunnen aanmaken. Er is geen login: bind niet op een openbaar adres.
+
+### Frontend ontwikkelen
+
+De frontend staat in `web/` (React + TypeScript, Vite, Vitest). Met Node.js:
+
+```bash
+cd web
+npm ci
+npm run dev                       # Vite op http://localhost:5173; /api gaat naar noot serve op :4242
+npm test                          # Vitest + Testing Library
+npm run build                     # typecheck + build naar web/dist/
+```
+
+Draai daarnaast `noot serve` voor de API. De code is per feature opgedeeld: `src/features/search` en `src/features/notes` (hooks voor de logica, componenten voor de weergave) en `src/shared` (API-client en routing).
 
 ## Synchroniseren met git
 
@@ -170,16 +209,18 @@ cmd/noot/                 main
 internal/domain/          Note, Link, NoteRef … (geen dependencies)
 internal/parser/          Markdown → domain.Note (goldmark AST + frontmatter)
 internal/vault/           Bestandslayout: root vinden, scannen, notities/journal aanmaken
-internal/app/             Use cases: Sync, Watch, Resolve; definieert de Store-port
+internal/app/             Use cases: Sync, Watch, Resolve, CreateNote, Search, ReadNote; definieert de Store-port
 internal/storage/sqlite/  Store-implementatie (SQLite + FTS5)
 internal/cli/             cobra-commando's en output
+internal/httpapi/         HTTP-adapter voor noot serve: JSON-API over de use cases + statische bestanden
+web/                      React-frontend; web/dist wordt via go:embed in de binary gezet
 ```
 
-Afhankelijkheden lopen naar binnen: `cli → app → domain`, en `storage` implementeert `app.Store`. Wil je een andere zoekmotor (bleve, Meilisearch) of semantisch zoeken met embeddings, dan schrijf je een nieuwe Store. De rest blijft hetzelfde.
+Afhankelijkheden lopen naar binnen: `cli`/`httpapi → app → domain`, en `storage` implementeert `app.Store`. Wil je een andere zoekmotor (bleve, Meilisearch) of semantisch zoeken met embeddings, dan schrijf je een nieuwe Store. De rest blijft hetzelfde.
 
 ## Ideeën voor later
 
-- `noot serve`: web-UI met `net/http` + htmx, met zoeken, backlinks en een graph (`/graph.json` + cytoscape.js)
+- Web-UI uitbreiden: backlinks en een graph (`/graph.json` + cytoscape.js)
 - Semantisch zoeken: embeddings via Ollama naast FTS5 (sqlite-vec of een eigen tabel)
 - Auto-commit: `noot sync` die `git add/commit/pull --rebase/push` uitvoert
 - Templates in `.noot/templates/` voor `new` en `today`
