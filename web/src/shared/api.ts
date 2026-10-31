@@ -17,6 +17,8 @@ export interface Note extends NoteRef {
   content: string;
   /** The body rendered by the server; links to notes point at noteHref. */
   html: string;
+  /** Identifies the loaded content; saveNote sends it back. */
+  version: string;
 }
 
 export interface NoteDraft {
@@ -61,8 +63,12 @@ export function createNote(draft: NoteDraft): Promise<NoteRef> {
 /** The journal note of one day. */
 export interface JournalDay extends Note {
   date: string; // YYYY-MM-DD
-  /** Identifies the loaded content; saveJournal sends it back. */
-  version: string;
+}
+
+/** The agenda note of one ISO week. */
+export interface AgendaWeek extends Note {
+  week: string; // e.g. 2026-W45
+  monday: string; // YYYY-MM-DD
 }
 
 /** A line of reminders.md; n is its number, as the CLI shows it. */
@@ -94,9 +100,17 @@ export function getJournal(day: string, signal?: AbortSignal): Promise<JournalDa
   return request(`/api/journal/${encodeURIComponent(day)}`, { signal });
 }
 
-/** Fails with status 409 when the note changed after it was loaded at version. */
-export function saveJournal(day: string, content: string, version: string): Promise<JournalDay> {
-  return sendJSON("PUT", `/api/journal/${encodeURIComponent(day)}`, { content, version });
+/** The agenda of the week day falls in; day takes the same words as getJournal. */
+export function getAgenda(day: string, signal?: AbortSignal): Promise<AgendaWeek> {
+  return request(`/api/agenda/${encodeURIComponent(day)}`, { signal });
+}
+
+/**
+ * Replaces the whole file of a note. Fails with status 409 when the note
+ * changed after it was loaded at version.
+ */
+export function saveNote(ref: string, content: string, version: string): Promise<Note> {
+  return sendJSON("PUT", `/api/notes/${encodeURIComponent(ref)}`, { content, version });
 }
 
 export function listReminders(all: boolean, signal?: AbortSignal): Promise<Reminder[]> {

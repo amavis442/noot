@@ -4,12 +4,13 @@ import {
   ApiError,
   completeReminder,
   createNote,
+  getAgenda,
   getJournal,
   getNote,
   listReminders,
   noteHref,
   planReminder,
-  saveJournal,
+  saveNote,
   searchNotes,
 } from "./api";
 import { stubFetch } from "./testing";
@@ -54,17 +55,18 @@ describe("api", () => {
     expect(noteHref("zettels/a b.md")).toBe("#/note/zettels%2Fa%20b.md");
   });
 
-  it("loads and saves a journal day", async () => {
-    const fetchMock = stubFetch(
-      { body: { date: "2026-10-31", version: "v1", id: "J", path: "journal/2026-10-31.md", title: "", content: "x", html: "" } },
-      { body: { date: "2026-10-31", version: "v2", id: "J", path: "journal/2026-10-31.md", title: "", content: "y", html: "" } },
-    );
-    expect((await getJournal("today")).version).toBe("v1");
-    expect(fetchMock.mock.calls[0][0]).toBe("/api/journal/today");
+  it("loads the journal and agenda of a day", async () => {
+    const fetchMock = stubFetch({ body: { date: "2026-10-31" } }, { body: { week: "2026-W44", monday: "2026-10-26" } });
+    expect((await getJournal("today")).date).toBe("2026-10-31");
+    expect((await getAgenda("vandaag")).week).toBe("2026-W44");
+    expect(fetchMock.mock.calls.map((c) => c[0])).toEqual(["/api/journal/today", "/api/agenda/vandaag"]);
+  });
 
-    expect((await saveJournal("2026-10-31", "y", "v1")).version).toBe("v2");
-    const [url, init] = fetchMock.mock.calls[1];
-    expect(url).toBe("/api/journal/2026-10-31");
+  it("saves a note with the version it was loaded with", async () => {
+    const fetchMock = stubFetch({ body: { id: "A", path: "zettels/a.md", title: "A", version: "v2", content: "y", html: "" } });
+    expect((await saveNote("zettels/a.md", "y", "v1")).version).toBe("v2");
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/notes/zettels%2Fa.md");
     expect(init.method).toBe("PUT");
     expect(JSON.parse(init.body)).toEqual({ content: "y", version: "v1" });
   });

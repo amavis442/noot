@@ -111,7 +111,7 @@ Elk leescommando werkt de index eerst incrementeel bij (op basis van mtime en gr
 | `reminder plan <n> <dag>` | Reminder onder Planned van die dag in de weekagenda zetten (de agenda wordt zo nodig aangemaakt) |
 | `open <note> [--print]` | Notitie openen via id, pad, bestandsnaam, titel of alias |
 | `watch` | Index live bijhouden (Ctrl+C om te stoppen) |
-| `serve [--addr 127.0.0.1:4242]` | Web-UI om te zoeken, notities te lezen en te maken, de dagnotitie te bewerken en reminders te beheren, plus een JSON-API (zie [Web-UI](#web-ui)). Houdt de index live bij zoals `watch` |
+| `serve [--addr 127.0.0.1:4242]` | Web-UI om te zoeken, notities te maken en te bewerken (ook de dagnotitie en de weekagenda) en reminders te beheren, plus een JSON-API (zie [Web-UI](#web-ui)). Houdt de index live bij zoals `watch` |
 | `push [-m melding] [--no-pull]` | Alles committen en pushen: `git add -A`, commit, `pull --rebase`, `push` |
 | `pull` | Wijzigingen van elders binnenhalen (`pull --rebase --autostash`) en de index bijwerken |
 | `status` | Laten zien wat de volgende `push` meeneemt: gewijzigde bestanden (A/M/D) en commits die nog niet gepusht zijn. Kijkt alleen, zonder netwerk |
@@ -135,8 +135,10 @@ noot -A serve --addr 127.0.0.1:8080
 `noot serve` serveert de vault die je ook met elk ander commando kiest (`-V`, `-A`, de huidige map of de default). In de UI kun je:
 
 - **Zoeken** met dezelfde zoekopdracht als `noot search` en een notitie openen. Wikilinks en Markdown-links zijn klikbaar.
+- **Elke notitie bewerken** met *Bewerken*: je bewerkt het hele bestand, frontmatter inbegrepen. Is het bestand intussen buiten de UI gewijzigd (in je editor, of door `noot pull`), dan weigert opslaan en houdt de UI je tekst vast; *Herladen* haalt de versie van schijf op.
 - **Een nieuwe notitie maken** met een titel en optioneel tekst en tags. Nieuwe notities komen in `zettels/`.
-- **De dagnotitie bewerken** onder *Vandaag*, net als `noot today`. Je bladert naar de vorige of volgende dag en bewerkt de hele notitie, frontmatter inbegrepen. Is het bestand intussen buiten de UI gewijzigd (in je editor, of door `noot pull`), dan weigert opslaan en houdt de UI je tekst vast; *Herladen* haalt de versie van schijf op.
+- **De dagnotitie** onder *Vandaag*, net als `noot today`, met bladeren naar de vorige en volgende dag.
+- **De weekagenda** onder *Agenda*, net als `noot agenda`, met bladeren per week. De week wordt aangemaakt als hij nog niet bestaat.
 - **Reminders beheren** onder *Reminders*, net als `noot reminder`: toevoegen met een uiterste datum, afvinken en inplannen in de weekagenda. Een dag schrijf je zoals op de commandoregel: `2026-11-06`, `vandaag`, `morgen`, `+3` of `vrijdag`.
 
 De API, voor scripts:
@@ -144,10 +146,11 @@ De API, voor scripts:
 | Endpoint | Wat |
 |---|---|
 | `GET /api/search?q=…&tag=…&limit=…` | Zoekresultaten, net als `noot search --json` |
-| `GET /api/notes/{ref}` | Notitie via id, pad, bestandsnaam, titel of alias: `content` (het bestand) en `html` (gerenderd) |
+| `GET /api/notes/{ref}` | Notitie via id, pad, bestandsnaam, titel of alias: `content` (het bestand), `html` (gerenderd) en `version` |
+| `PUT /api/notes/{ref}` | Notitie opslaan; body `{"content": "…", "version": "…"}`. Geeft `409` als het bestand na het laden is gewijzigd |
 | `POST /api/notes` | Nieuwe notitie; body `{"title": "…", "body": "…", "tags": ["…"]}` |
-| `GET /api/journal/{dag}` | Dagnotitie (wordt aangemaakt als hij ontbreekt), met `content`, `html` en `version`; `{dag}` mag ook `vandaag` zijn |
-| `PUT /api/journal/{dag}` | Dagnotitie opslaan; body `{"content": "…", "version": "…"}`. Geeft `409` als het bestand na het laden is gewijzigd |
+| `GET /api/journal/{dag}` | Dagnotitie (wordt aangemaakt als hij ontbreekt), zoals een notitie plus `date`; `{dag}` mag ook `vandaag` zijn. Opslaan gaat via `PUT /api/notes/{pad}` |
+| `GET /api/agenda/{dag}` | Weekagenda van de week waarin `{dag}` valt (wordt aangemaakt als hij ontbreekt), plus `week` en `monday` |
 | `GET /api/reminders?all=true` | Reminders, net als `noot reminder --json` (zonder `all` alleen de open) |
 | `POST /api/reminders` | Reminder toevoegen; body `{"text": "…", "due": "vrijdag"}` (`due` is optioneel) |
 | `POST /api/reminders/{n}/done` | Reminder `n` afvinken (body `{}`) |
@@ -169,7 +172,7 @@ npm test                          # Vitest + Testing Library
 npm run build                     # typecheck + build naar web/dist/
 ```
 
-Draai daarnaast `noot serve` voor de API. De code is per feature opgedeeld: `src/features/search`, `notes`, `journal` en `reminders` (hooks voor de logica, componenten voor de weergave) en `src/shared` (API-client en routing).
+Draai daarnaast `noot serve` voor de API. De code is per feature opgedeeld: `src/features/search`, `notes`, `journal`, `agenda` en `reminders` (hooks voor de logica, componenten voor de weergave) en `src/shared` (API-client, routing en het bewerken van notities, dat notes, journal en agenda delen).
 
 ## Synchroniseren met git
 
