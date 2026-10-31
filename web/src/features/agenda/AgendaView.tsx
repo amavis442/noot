@@ -1,5 +1,5 @@
 import { getAgenda, type AgendaWeek } from "../../shared/api";
-import { agendaHref, shiftDay } from "../../shared/days";
+import { agendaHref, shiftDay, weekdayName } from "../../shared/days";
 import { EditableNote } from "../../shared/editing/EditableNote";
 import { useEditableNote } from "../../shared/editing/useEditableNote";
 import { AgendaDayCard } from "./AgendaDayCard";
@@ -21,7 +21,7 @@ export function AgendaView({ day }: { day: string }) {
           {/* The server renders the Markdown without raw HTML, so this is safe. */}
           <div className="markdown" dangerouslySetInnerHTML={{ __html: w.intro_html }} />
           {w.days.map((d) => (
-            <AgendaDayCard key={d.date} day={d} path={w.path} refresh={state.refresh} />
+            <AgendaDayCard key={d.date} day={d} dayname={weekdayName(d.date)} path={w.path} refresh={state.refresh} />
           ))}
         </>
       )}

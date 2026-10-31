@@ -226,10 +226,44 @@ button.secondary {
 
 /* A divider above every day of the week: the day cards, and the day
    headings in the preview of the whole week. */
+/* Every day of the week is a card in its own colour: a bar on the left
+   and a light tint of it over the surface, so the same colours read well
+   in light and dark mode. */
 .agenda-day {
-  border-top: 1px solid var(--border);
-  padding-top: 0.75rem;
-  margin-top: 1.5rem;
+  --day: var(--border);
+  border-left: 4px solid var(--day);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--day) 12%, var(--surface));
+  padding: 0.75rem 1rem;
+  margin-top: 1rem;
+}
+
+.agenda-monday {
+  --day: #4c8bf5;
+}
+
+.agenda-tuesday {
+  --day: #2fa37a;
+}
+
+.agenda-wednesday {
+  --day: #d9a21b;
+}
+
+.agenda-thursday {
+  --day: #e0702f;
+}
+
+.agenda-friday {
+  --day: #d64f6b;
+}
+
+.agenda-saturday {
+  --day: #8a63d2;
+}
+
+.agenda-sunday {
+  --day: #6f8496;
 }
 
 .agenda-day-head {

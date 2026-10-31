@@ -55,6 +55,15 @@ describe("AgendaView", () => {
     expect(within(day("Monday 2 November")).getByRole("button", { name: /bewerken/i })).toBeInTheDocument();
   });
 
+  it("gives every day the class of its weekday, for its colour", async () => {
+    stubFetch(week());
+    render(<AgendaView day="today" />);
+
+    await screen.findByRole("heading", { name: "Monday 2 November" });
+    expect(day("Monday 2 November")).toHaveClass("agenda-day", "agenda-monday");
+    expect(day("Tuesday 3 November")).toHaveClass("agenda-day", "agenda-tuesday");
+  });
+
   it("edits one day and shows the week as it is now", async () => {
     const fetchMock = stubFetch(
       week(),

@@ -6,6 +6,15 @@ export function shiftDay(date: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+/** The English name of the weekday of date (YYYY-MM-DD), e.g. "Monday". */
+export function weekdayName(date: string): string {
+  // UTC, as date is parsed as midnight UTC: getDay() in a time zone west of
+  // UTC would give the day before.
+  return weekdays[new Date(`${date}T00:00:00Z`).getUTCDay()];
+}
+
 /** The frontend route that shows the journal of day. */
 export function journalHref(day: string): string {
   return `#/journal/${day}`;
