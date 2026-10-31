@@ -129,6 +129,20 @@ export function planReminder(n: number, day: string): Promise<Planned> {
   return sendJSON("POST", `/api/reminders/${n}/plan`, { day });
 }
 
+/**
+ * Renders unsaved content as the note at path would be rendered; path makes
+ * relative links resolve as they will once saved.
+ */
+export async function previewNote(path: string, content: string, signal?: AbortSignal): Promise<string> {
+  const res = await request<{ html: string }>("/api/preview", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path, content }),
+    signal,
+  });
+  return res.html;
+}
+
 /** The frontend route that shows a note; ref is an id, path, title or alias. */
 export function noteHref(ref: string): string {
   return `#/note/${encodeURIComponent(ref)}`;

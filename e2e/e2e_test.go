@@ -873,6 +873,15 @@ func TestServe(t *testing.T) {
 	if code, body := get("/api/notes/zettels%2Fbestaand.md"); code != http.StatusOK || !strings.Contains(body, `href=\"#/note/Nieuw%20idee\"`) {
 		t.Errorf("read rendered link = %d %s", code, body)
 	}
+	res, err = http.Post(base+"/api/preview", "application/json", strings.NewReader(`{"path":"zettels/x.md","content":"# Concept\n\nZie [[Bestaand]]."}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ = io.ReadAll(res.Body)
+	res.Body.Close()
+	if res.StatusCode != http.StatusOK || !strings.Contains(string(b), `href=\"#/note/Bestaand\"`) {
+		t.Errorf("preview = %d %s", res.StatusCode, b)
+	}
 	contains(t, "CLI sees the note", e.ok("-V", "v", "search", "osprey"), "zettels/nieuw-idee.md")
 
 	// Files changed outside the server show up without a restart.

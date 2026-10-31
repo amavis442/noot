@@ -42,7 +42,14 @@ export function EditableNote<T extends Note>({ state, header }: Props<T>) {
         </div>
       )}
       {editing ? (
-        <NoteEditor initial={note.content} saving={saving} onSave={onSave} onCancel={() => setEditing(false)} />
+        <NoteEditor
+          path={note.path}
+          initial={note.content}
+          initialHtml={note.html}
+          saving={saving}
+          onSave={onSave}
+          onCancel={() => setEditing(false)}
+        />
       ) : (
         <>
           <button type="button" onClick={() => setEditing(true)}>

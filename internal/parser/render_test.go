@@ -34,3 +34,10 @@ func TestRenderHTML(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderHTMLBrokenFrontmatter(t *testing.T) {
+	_, err := RenderHTML("a.md", []byte("---\ntitle: [oops\n---\n# x"), "#/note/")
+	if err == nil || !strings.HasPrefix(err.Error(), "frontmatter: ") {
+		t.Fatalf("err = %v, want it to name the frontmatter", err)
+	}
+}

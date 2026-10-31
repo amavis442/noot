@@ -2,6 +2,7 @@ package parser
 
 import (
 	"bytes"
+	"fmt"
 	"net/url"
 	"slices"
 	"strings"
@@ -23,11 +24,12 @@ func RenderHTML(relPath string, content []byte, linkPrefix string) (string, erro
 		return href(l.Target), true
 	})
 	if err != nil {
-		return "", err
+		// RewriteLinks only fails on the frontmatter.
+		return "", fmt.Errorf("frontmatter: %w", err)
 	}
 	_, body, err := splitFrontmatter(content)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("frontmatter: %w", err)
 	}
 
 	code := codeRanges(body)

@@ -135,7 +135,7 @@ noot -A serve --addr 127.0.0.1:8080
 `noot serve` serveert de vault die je ook met elk ander commando kiest (`-V`, `-A`, de huidige map of de default). In de UI kun je:
 
 - **Zoeken** met dezelfde zoekopdracht als `noot search` en een notitie openen. Wikilinks en Markdown-links zijn klikbaar.
-- **Elke notitie bewerken** met *Bewerken*: je bewerkt het hele bestand, frontmatter inbegrepen. Is het bestand intussen buiten de UI gewijzigd (in je editor, of door `noot pull`), dan weigert opslaan en houdt de UI je tekst vast; *Herladen* haalt de versie van schijf op.
+- **Elke notitie bewerken** met *Bewerken*: je bewerkt het hele bestand, frontmatter inbegrepen, met een voorbeeld ernaast dat meeloopt terwijl je typt. Is het bestand intussen buiten de UI gewijzigd (in je editor, of door `noot pull`), dan weigert opslaan en houdt de UI je tekst vast; *Herladen* haalt de versie van schijf op.
 - **Een nieuwe notitie maken** met een titel en optioneel tekst en tags. Nieuwe notities komen in `zettels/`.
 - **De dagnotitie** onder *Vandaag*, net als `noot today`, met bladeren naar de vorige en volgende dag.
 - **De weekagenda** onder *Agenda*, net als `noot agenda`, met bladeren per week. De week wordt aangemaakt als hij nog niet bestaat.
@@ -149,6 +149,7 @@ De API, voor scripts:
 | `GET /api/notes/{ref}` | Notitie via id, pad, bestandsnaam, titel of alias: `content` (het bestand), `html` (gerenderd) en `version` |
 | `PUT /api/notes/{ref}` | Notitie opslaan; body `{"content": "…", "version": "…"}`. Geeft `409` als het bestand na het laden is gewijzigd |
 | `POST /api/notes` | Nieuwe notitie; body `{"title": "…", "body": "…", "tags": ["…"]}` |
+| `POST /api/preview` | Niet-opgeslagen tekst renderen zoals de notitie eruit komt te zien; body `{"path": "…", "content": "…"}`, antwoord `{"html": "…"}`. Leest en schrijft geen bestanden |
 | `GET /api/journal/{dag}` | Dagnotitie (wordt aangemaakt als hij ontbreekt), zoals een notitie plus `date`; `{dag}` mag ook `vandaag` zijn. Opslaan gaat via `PUT /api/notes/{pad}` |
 | `GET /api/agenda/{dag}` | Weekagenda van de week waarin `{dag}` valt (wordt aangemaakt als hij ontbreekt), plus `week` en `monday` |
 | `GET /api/reminders?all=true` | Reminders, net als `noot reminder --json` (zonder `all` alleen de open) |
