@@ -1,5 +1,22 @@
-import { describe, expect, it } from "vitest";
-import { agendaHref, journalHref, shiftDay } from "./days";
+import { afterEach, describe, expect, it } from "vitest";
+import { agendaHref, journalHref, shiftDay, weekdayName } from "./days";
+
+describe("weekdayName", () => {
+  const tz = process.env.TZ;
+  afterEach(() => {
+    process.env.TZ = tz;
+  });
+
+  it("names the day of the week of a date", () => {
+    expect(["2026-11-02", "2026-11-03", "2026-11-08"].map(weekdayName)).toEqual(["Monday", "Tuesday", "Sunday"]);
+  });
+
+  it("does not depend on the time zone", () => {
+    // West of UTC, midnight UTC is still the evening before.
+    process.env.TZ = "America/New_York";
+    expect(weekdayName("2026-11-02")).toBe("Monday");
+  });
+});
 
 describe("shiftDay", () => {
   it("moves across month and year ends", () => {
