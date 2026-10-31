@@ -805,7 +805,9 @@ func TestNewNotesGetUniqueIDs(t *testing.T) {
 
 	// A note is still reachable by its id, whatever the id looks like.
 	for id, rel := range ids {
-		contains(t, "open by id", e.ok("open", id, "--print"), rel)
+		if got := strings.TrimSpace(e.ok("open", id, "--print")); got != e.path("v/"+rel) {
+			t.Errorf("open %s --print = %q, want %q", id, got, e.path("v/"+rel))
+		}
 	}
 }
 
