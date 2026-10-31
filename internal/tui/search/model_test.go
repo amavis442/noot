@@ -268,3 +268,27 @@ func TestHelpFollowsTheFocus(t *testing.T) {
 		t.Fatalf("results help = %q", got)
 	}
 }
+
+// TestOneLinePerHitAndACount: a hit drawn as title and path on two lines
+// looked like two results, so one hit on one line, with the count on top.
+func TestOneLinePerHitAndACount(t *testing.T) {
+	m, _, _ := newModel()
+	kittest.Type(t, m, "Bonen")
+	out := m.View()
+	if !strings.Contains(out, "1 resultaat") {
+		t.Fatalf("count missing:\n%s", out)
+	}
+	found := false
+	for _, line := range strings.Split(out, "\n") {
+		if strings.Contains(line, "▸ koffie") {
+			found = strings.Contains(line, "koffie.md")
+		}
+	}
+	if !found {
+		t.Fatalf("title and path share one line:\n%s", out)
+	}
+	kittest.Type(t, m, "backspace", "backspace", "backspace", "backspace", "backspace", "rogge")
+	if out := m.View(); !strings.Contains(out, "2 resultaten") {
+		t.Fatalf("plural count missing:\n%s", out)
+	}
+}

@@ -4,6 +4,7 @@ package search
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/amavis442/noot/internal/app"
@@ -337,29 +338,45 @@ func (m *Model) results(rows int) string {
 	return m.hitList(rows, w)
 }
 
+// countLines is the count line on top of the results and the blank under it.
+const countLines = 2
+
 // perPage is the number of hits the results panel shows at once.
 func (m *Model) perPage() int {
 	_, rows := kit.BoxInner(m.listWidth(), m.panelHeight())
-	return max(rows/2, 1)
+	return max(rows-countLines, 1)
 }
 
-// hitList shows two lines per hit, scrolled so the selection stays visible.
+// hitList shows the number of hits, then one line per hit: the title with
+// its path dimmed after it, scrolled so the selection stays visible. A title
+// and path on lines of their own looked like two hits.
 func (m *Model) hitList(rows, w int) string {
-	per := max(rows/2, 1)
-	first := max(m.cursor-per+1, 0)
-	var b strings.Builder
-	for i := first; i < len(m.hits) && i < first+per; i++ {
-		h := m.hits[i]
-		title := h.Title
-		if title == "" {
-			title = h.Path
-		}
-		if i == m.cursor {
-			b.WriteString(kit.Selected.Render(kit.Truncate("▸ "+title, w)))
-		} else {
-			b.WriteString(kit.Truncate("  "+title, w))
-		}
-		b.WriteString("\n" + kit.Muted.Render(kit.Truncate("  "+h.Path, w)) + "\n")
+	count := fmt.Sprintf("%d resultaten", len(m.hits))
+	if len(m.hits) == 1 {
+		count = "1 resultaat"
 	}
-	return strings.TrimSuffix(b.String(), "\n")
+	lines := []string{kit.Muted.Render(count), ""}
+	per := max(rows-countLines, 1)
+	first := max(m.cursor-per+1, 0)
+	for i := first; i < len(m.hits) && i < first+per; i++ {
+		lines = append(lines, m.hitLine(m.hits[i], i == m.cursor, w))
+	}
+	return strings.Join(lines, "\n")
+}
+
+// hitLine is "▸ Title  path", cut to w cells; the path is left out when the title fills the line.
+func (m *Model) hitLine(h domain.SearchHit, selected bool, w int) string {
+	title := h.Title
+	if title == "" {
+		title = h.Path
+	}
+	marker, style := "  ", lipgloss.NewStyle()
+	if selected {
+		marker, style = "▸ ", kit.Selected
+	}
+	head := marker + title
+	if lipgloss.Width(head) >= w || h.Path == title {
+		return style.Render(kit.Truncate(head, w))
+	}
+	return style.Render(head) + kit.Muted.Render(kit.Truncate("  "+h.Path, w-lipgloss.Width(head)))
 }
