@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"slices"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -88,7 +87,7 @@ func cmdReminderDone(opts *options) *cobra.Command {
 			return run(cmd, opts, false, func(e *env) error {
 				var done []vault.Reminder
 				for _, n := range ns {
-					r, err := e.svc.Vault.CompleteReminder(n, time.Now())
+					r, err := e.svc.CompleteReminder(n, time.Now())
 					if err != nil {
 						return err
 					}
@@ -126,7 +125,7 @@ reminder. <day> is YYYY-MM-DD, today, tomorrow, +N or a weekday (the next one).`
 				return err
 			}
 			return run(cmd, opts, false, func(e *env) error {
-				r, rel, err := e.svc.Vault.PlanReminder(ns[0], day)
+				r, rel, err := e.svc.PlanReminder(ns[0], day)
 				if err != nil {
 					return err
 				}
@@ -149,7 +148,7 @@ func addReminder(cmd *cobra.Command, opts *options, text, due string) error {
 		}
 	}
 	return run(cmd, opts, false, func(e *env) error {
-		r, err := e.svc.Vault.AddReminder(text, day, time.Now())
+		r, err := e.svc.AddReminder(text, day, time.Now())
 		if err != nil {
 			return err
 		}
@@ -163,28 +162,11 @@ func addReminder(cmd *cobra.Command, opts *options, text, due string) error {
 
 func listReminders(cmd *cobra.Command, opts *options, all bool) error {
 	return run(cmd, opts, false, func(e *env) error {
-		rs, err := e.svc.Vault.Reminders()
+		rs, err := e.svc.Reminders(all)
 		if err != nil {
 			return err
 		}
-		if !all {
-			rs = slices.DeleteFunc(rs, func(r vault.Reminder) bool { return r.Done })
-		}
-		// Open before done, then the earliest date (due or planned); undated last.
-		key := func(r vault.Reminder) string {
-			d := "9999"
-			for _, s := range []string{r.Due, r.Planned} {
-				if s != "" && s < d {
-					d = s
-				}
-			}
-			return strconv.FormatBool(r.Done) + d
-		}
-		slices.SortStableFunc(rs, func(a, b vault.Reminder) int { return strings.Compare(key(a), key(b)) })
 		if opts.asJSON {
-			if rs == nil {
-				rs = []vault.Reminder{}
-			}
 			return e.json(rs)
 		}
 		if len(rs) == 0 {

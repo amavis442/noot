@@ -145,9 +145,9 @@ func (s *Service) MustResolve(ctx context.Context, ref string) (*domain.NoteRef,
 	return r, nil
 }
 
-// ErrNotFound matches (errors.Is) the error MustResolve returns for a
-// reference that resolves to no note.
-var ErrNotFound = errors.New("note not found")
+// ErrNotFound matches (errors.Is) the error for something that does not
+// exist, such as a reference that resolves to no note in MustResolve.
+var ErrNotFound = errors.New("not found")
 
 type notFoundError struct{ ref string }
 

@@ -19,11 +19,18 @@ import (
 	"github.com/amavis442/noot/internal/parser"
 )
 
-// Notes is what the API needs from the app layer; *app.Service implements it.
+// Notes is what the note endpoints need from the app layer.
 type Notes interface {
 	Search(ctx context.Context, q domain.SearchQuery) ([]domain.SearchHit, error)
 	ReadNote(ctx context.Context, ref string) (*domain.Document, error)
 	CreateNote(ctx context.Context, d app.NoteDraft, now time.Time) (*domain.NoteRef, error)
+}
+
+// Ports are the app use cases the API calls; *app.Service implements each.
+type Ports struct {
+	Notes     Notes
+	Journal   Journal
+	Reminders Reminders
 }
 
 // noteLinkPrefix is where links inside a rendered note point to: the
@@ -42,12 +49,20 @@ and rebuild noot. The JSON API under <code>/api/</code> works regardless.</p>
 `
 
 // New returns the handler for the API and the frontend files in assets.
-func New(notes Notes, assets fs.FS) http.Handler {
-	h := &handler{notes: notes}
+func New(p Ports, assets fs.FS) http.Handler {
+	h := &handler{notes: p.Notes}
+	j := &journalHandler{journal: p.Journal}
+	rh := &reminderHandler{reminders: p.Reminders}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/search", h.search)
 	mux.HandleFunc("GET /api/notes/{ref...}", h.readNote)
 	mux.HandleFunc("POST /api/notes", h.createNote)
+	mux.HandleFunc("GET /api/journal/{day}", j.get)
+	mux.HandleFunc("PUT /api/journal/{day}", j.put)
+	mux.HandleFunc("GET /api/reminders", rh.list)
+	mux.HandleFunc("POST /api/reminders", rh.add)
+	mux.HandleFunc("POST /api/reminders/{n}/done", rh.done)
+	mux.HandleFunc("POST /api/reminders/{n}/plan", rh.plan)
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, _ *http.Request) {
 		writeError(w, http.StatusNotFound, errors.New("no such endpoint"))
 	})
@@ -86,20 +101,22 @@ type note struct {
 
 func (h *handler) readNote(w http.ResponseWriter, r *http.Request) {
 	doc, err := h.notes.ReadNote(r.Context(), r.PathValue("ref"))
-	if errors.Is(err, app.ErrNotFound) {
-		writeError(w, http.StatusNotFound, err)
-		return
-	}
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
+		writeAppError(w, err)
 		return
 	}
+	n, err := render(*doc)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, n)
+}
+
+// render adds the HTML of a note's body.
+func render(doc domain.Document) (note, error) {
 	html, err := parser.RenderHTML(doc.Path, []byte(doc.Content), noteLinkPrefix)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, note{Document: *doc, HTML: html})
+	return note{Document: doc, HTML: html}, err
 }
 
 // draft is the request body for a new note. The folder is not part of it:
@@ -111,29 +128,48 @@ type draft struct {
 }
 
 func (h *handler) createNote(w http.ResponseWriter, r *http.Request) {
-	// Requiring JSON keeps other sites out: a cross-site form cannot send it,
-	// and a cross-site fetch that does needs a CORS preflight we never allow.
-	if mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type")); mt != "application/json" {
-		writeError(w, http.StatusUnsupportedMediaType, errors.New("send the note as application/json"))
-		return
-	}
 	var d draft
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBody))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&d); err != nil {
-		writeError(w, http.StatusBadRequest, err)
+	if !decodeJSON(w, r, &d) {
 		return
 	}
 	ref, err := h.notes.CreateNote(r.Context(), app.NoteDraft{Title: d.Title, Body: d.Body, Tags: d.Tags}, time.Now())
-	if errors.Is(err, app.ErrInvalidNote) {
-		writeError(w, http.StatusBadRequest, err)
-		return
-	}
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
+		writeAppError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, ref)
+}
+
+// decodeJSON reads the request body into v. On failure it writes the error
+// response and returns false.
+func decodeJSON(w http.ResponseWriter, r *http.Request, v any) bool {
+	// Requiring JSON keeps other sites out: a cross-site form cannot send it,
+	// and a cross-site fetch that does needs a CORS preflight we never allow.
+	if mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type")); mt != "application/json" {
+		writeError(w, http.StatusUnsupportedMediaType, errors.New("send the request body as application/json"))
+		return false
+	}
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBody))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(v); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return false
+	}
+	return true
+}
+
+// writeAppError answers with the status that fits an error of the app layer.
+func writeAppError(w http.ResponseWriter, err error) {
+	status := http.StatusInternalServerError
+	switch {
+	case errors.Is(err, app.ErrNotFound):
+		status = http.StatusNotFound
+	case errors.Is(err, app.ErrInvalidNote), errors.Is(err, app.ErrInvalidReminder):
+		status = http.StatusBadRequest
+	case errors.Is(err, app.ErrConflict):
+		status = http.StatusConflict
+	}
+	writeError(w, status, err)
 }
 
 func staticFiles(assets fs.FS) http.Handler {

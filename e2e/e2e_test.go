@@ -832,18 +832,7 @@ func TestServe(t *testing.T) {
 	e.ok("init", e.path("v"), "--name", "v")
 	e.write("v/zettels/bestaand.md", "# Bestaand\nkeyword-heron, zie [[Nieuw idee]]")
 
-	cmd := exec.Command(bin, "-V", "v", "serve", "--addr", "127.0.0.1:0")
-	cmd.Dir, cmd.Env = e.cwd, e.environ()
-	var out syncBuffer
-	cmd.Stdout, cmd.Stderr = &out, &out
-	if err := cmd.Start(); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
-
-	addr := regexp.MustCompile(`http://127\.0\.0\.1:\d+`)
-	waitFor(t, "server start", func() bool { return addr.MatchString(out.String()) })
-	base := addr.FindString(out.String())
+	base := e.serve("v")
 
 	get := func(path string) (int, string) {
 		t.Helper()
@@ -899,6 +888,78 @@ func TestServe(t *testing.T) {
 		t.Errorf("foreign host: %v %v", res, err)
 	} else {
 		res.Body.Close()
+	}
+}
+
+// serve starts noot serve for vault on a free port and returns its base URL.
+func (e *env) serve(vault string) string {
+	e.t.Helper()
+	cmd := exec.Command(bin, "-V", vault, "serve", "--addr", "127.0.0.1:0")
+	cmd.Dir, cmd.Env = e.cwd, e.environ()
+	var out syncBuffer
+	cmd.Stdout, cmd.Stderr = &out, &out
+	if err := cmd.Start(); err != nil {
+		e.t.Fatal(err)
+	}
+	e.t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
+
+	addr := regexp.MustCompile(`http://127\.0\.0\.1:\d+`)
+	waitFor(e.t, "server start", func() bool { return addr.MatchString(out.String()) })
+	return addr.FindString(out.String())
+}
+
+func TestServeJournalAndReminders(t *testing.T) {
+	e := newEnv(t)
+	e.ok("init", e.path("v"), "--name", "v")
+	base := e.serve("v")
+
+	call := func(method, path, body string) (int, string) {
+		t.Helper()
+		req, err := http.NewRequest(method, base+path, strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if body != "" {
+			req.Header.Set("Content-Type", "application/json")
+		}
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		b, _ := io.ReadAll(res.Body)
+		return res.StatusCode, string(b)
+	}
+
+	today := time.Now().Format("2006-01-02")
+	code, body := call("GET", "/api/journal/vandaag", "")
+	var day struct{ Date, Path, Content, Version string }
+	if err := json.Unmarshal([]byte(body), &day); err != nil || code != http.StatusOK || day.Date != today {
+		t.Fatalf("journal today = %d %s", code, body)
+	}
+	edit, _ := json.Marshal(map[string]string{"content": day.Content + "keyword-curlew\n", "version": day.Version})
+	if code, body := call("PUT", "/api/journal/"+today, string(edit)); code != http.StatusOK {
+		t.Fatalf("save journal = %d %s", code, body)
+	}
+	contains(t, "journal file", e.read("v/journal/"+today+".md"), "keyword-curlew")
+	if code, _ := call("PUT", "/api/journal/"+today, string(edit)); code != http.StatusConflict {
+		t.Errorf("stale save = %d, want 409", code)
+	}
+	contains(t, "CLI finds the edit", e.ok("-V", "v", "search", "curlew"), "journal/"+today+".md")
+
+	if code, body := call("POST", "/api/reminders", `{"text":"Fiets ophalen","due":"morgen"}`); code != http.StatusCreated {
+		t.Fatalf("add reminder = %d %s", code, body)
+	}
+	if code, body := call("POST", "/api/reminders/1/plan", `{"day":"vandaag"}`); code != http.StatusOK {
+		t.Fatalf("plan reminder = %d %s", code, body)
+	}
+	contains(t, "CLI lists it", e.ok("-V", "v", "reminder"), "Fiets ophalen")
+	if code, body := call("POST", "/api/reminders/1/done", `{}`); code != http.StatusOK {
+		t.Fatalf("done = %d %s", code, body)
+	}
+	contains(t, "reminders.md", e.read("v/reminders.md"), "- [x] Fiets ophalen")
+	if code, body := call("GET", "/api/reminders", ""); code != http.StatusOK || strings.TrimSpace(body) != "[]" {
+		t.Errorf("open reminders = %d %s", code, body)
 	}
 }
 

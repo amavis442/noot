@@ -472,10 +472,11 @@ func cmdToday(opts *options) *cobra.Command {
 		Short: "Open (and create if needed) today's journal note",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return run(cmd, opts, false, func(e *env) error {
-				rel, _, err := e.svc.Vault.Journal(time.Now().AddDate(0, 0, offset))
+				j, err := e.svc.Journal(e.ctx, time.Now().AddDate(0, 0, offset))
 				if err != nil {
 					return err
 				}
+				rel := j.Path
 				if noOpen {
 					fmt.Fprintln(e.out, rel)
 					return nil

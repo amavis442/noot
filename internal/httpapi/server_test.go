@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -45,6 +46,11 @@ func (f *fakeNotes) CreateNote(_ context.Context, d app.NoteDraft, _ time.Time) 
 	return &domain.NoteRef{ID: "N1", Path: "zettels/x.md", Title: d.Title}, nil
 }
 
+// api serves the notes endpoints of notes, with empty journal and reminder fakes.
+func api(notes Notes, assets fs.FS) http.Handler {
+	return New(Ports{Notes: notes, Journal: &fakeJournal{}, Reminders: &fakeReminders{}}, assets)
+}
+
 func do(t *testing.T, h http.Handler, method, target, contentType, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(method, target, strings.NewReader(body))
@@ -68,7 +74,7 @@ func decode(t *testing.T, rec *httptest.ResponseRecorder, v any) {
 
 func TestSearch(t *testing.T) {
 	notes := &fakeNotes{hits: []domain.SearchHit{{NoteRef: domain.NoteRef{ID: "A", Path: "a.md", Title: "Alpha"}, Snippet: "…alpha…"}}}
-	h := New(notes, fstest.MapFS{})
+	h := api(notes, fstest.MapFS{})
 
 	rec := do(t, h, "GET", "/api/search?q=alp&tag=go&tag=web&limit=5", "", "")
 	if rec.Code != http.StatusOK {
@@ -97,7 +103,7 @@ func TestReadNote(t *testing.T) {
 	notes := &fakeNotes{docs: map[string]domain.Document{
 		"zettels/a.md": {NoteRef: domain.NoteRef{ID: "A", Path: "zettels/a.md", Title: "Alpha"}, Content: "---\nid: A\n---\n# Alpha\n\nSee [[Beta]].\n"},
 	}}
-	h := New(notes, fstest.MapFS{})
+	h := api(notes, fstest.MapFS{})
 
 	rec := do(t, h, "GET", "/api/notes/zettels%2Fa.md", "", "")
 	if rec.Code != http.StatusOK {
@@ -129,7 +135,7 @@ func TestReadNote(t *testing.T) {
 
 func TestCreateNote(t *testing.T) {
 	notes := &fakeNotes{}
-	h := New(notes, fstest.MapFS{})
+	h := api(notes, fstest.MapFS{})
 
 	rec := do(t, h, "POST", "/api/notes", "application/json", `{"title":"Nieuw","body":"tekst","tags":["idee"]}`)
 	if rec.Code != http.StatusCreated {
@@ -174,7 +180,7 @@ func TestStaticFiles(t *testing.T) {
 		"index.html":    {Data: []byte("<!doctype html><title>noot</title>")},
 		"assets/app.js": {Data: []byte("console.log(1)")},
 	}
-	h := New(&fakeNotes{}, assets)
+	h := api(&fakeNotes{}, assets)
 
 	if rec := do(t, h, "GET", "/", "", ""); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "<title>noot</title>") {
 		t.Errorf("index: %d %s", rec.Code, rec.Body)
@@ -188,7 +194,7 @@ func TestStaticFiles(t *testing.T) {
 }
 
 func TestStaticFilesWithoutBuild(t *testing.T) {
-	h := New(&fakeNotes{}, fstest.MapFS{".gitkeep": {}})
+	h := api(&fakeNotes{}, fstest.MapFS{".gitkeep": {}})
 	rec := do(t, h, "GET", "/", "", "")
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "make web") {
 		t.Errorf("placeholder: %d %s", rec.Code, rec.Body)
