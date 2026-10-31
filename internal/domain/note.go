@@ -94,6 +94,12 @@ type LogExcerpt struct {
 	Text    string `json:"text"`
 }
 
+// Document is a note with its full file content, frontmatter included.
+type Document struct {
+	NoteRef
+	Content string `json:"content"`
+}
+
 // NoteContext is what is worth reading before working on a note: the note
 // itself, the notes around it and the recent log entries that mention it.
 type NoteContext struct {

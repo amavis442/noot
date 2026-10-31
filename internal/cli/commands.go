@@ -116,7 +116,7 @@ func cmdSearch(opts *options) *cobra.Command {
 			q.Text = strings.Join(args, " ")
 			if !all {
 				return run(cmd, opts, true, func(e *env) error {
-					hits, err := e.store.Search(e.ctx, q)
+					hits, err := e.svc.Search(e.ctx, q)
 					if err != nil {
 						return err
 					}
@@ -142,7 +142,7 @@ func cmdSearch(opts *options) *cobra.Command {
 			for _, n := range cfg.Names() {
 				vc, _ := cfg.Get(n)
 				err := runAt(cmd, opts, vc.Path, n, true, func(e *env) error {
-					hits, err := e.store.Search(e.ctx, q)
+					hits, err := e.svc.Search(e.ctx, q)
 					res = append(res, vaultHits{n, hits})
 					return err
 				})
@@ -446,19 +446,19 @@ func cmdNew(opts *options) *cobra.Command {
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return run(cmd, opts, false, func(e *env) error {
-				rel, err := e.svc.Vault.NewNote(strings.Join(args, " "), dir, tags, time.Now())
+				ref, err := e.svc.CreateNote(e.ctx, app.NoteDraft{Title: strings.Join(args, " "), Dir: dir, Tags: tags}, time.Now())
 				if err != nil {
 					return err
 				}
-				fmt.Fprintln(e.out, rel)
+				fmt.Fprintln(e.out, ref.Path)
 				if open {
-					return openInEditor(e.svc.Vault.Abs(rel))
+					return openInEditor(e.svc.Vault.Abs(ref.Path))
 				}
 				return nil
 			})
 		},
 	}
-	c.Flags().StringVarP(&dir, "dir", "d", "zettels", "folder inside the vault")
+	c.Flags().StringVarP(&dir, "dir", "d", app.NewNoteDir, "folder inside the vault")
 	c.Flags().StringSliceVarP(&tags, "tag", "t", nil, "tags (repeatable)")
 	c.Flags().BoolVarP(&open, "open", "o", false, "open in $EDITOR afterwards")
 	return c
@@ -472,10 +472,11 @@ func cmdToday(opts *options) *cobra.Command {
 		Short: "Open (and create if needed) today's journal note",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return run(cmd, opts, false, func(e *env) error {
-				rel, _, err := e.svc.Vault.Journal(time.Now().AddDate(0, 0, offset))
+				j, err := e.svc.Journal(e.ctx, time.Now().AddDate(0, 0, offset))
 				if err != nil {
 					return err
 				}
+				rel := j.Path
 				if noOpen {
 					fmt.Fprintln(e.out, rel)
 					return nil

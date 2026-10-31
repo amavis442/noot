@@ -187,7 +187,8 @@ func isVaultRoot(dir string) bool {
 }
 
 // NewNote creates dir/<slug>.md with frontmatter and returns its relative path.
-func (v *Vault) NewNote(title, dir string, tags []string, now time.Time) (string, error) {
+// A body that is not blank goes below the title heading.
+func (v *Vault) NewNote(title, dir string, tags []string, body string, now time.Time) (string, error) {
 	if strings.TrimSpace(title) == "" {
 		return "", errors.New("title is required")
 	}
@@ -211,6 +212,9 @@ func (v *Vault) NewNote(title, dir string, tags []string, now time.Time) (string
 	fmt.Fprintf(&b, "tags: [%s]\n", strings.Join(tags, ", "))
 	b.WriteString("---\n\n")
 	fmt.Fprintf(&b, "# %s\n\n", title)
+	if body = strings.TrimSpace(body); body != "" {
+		b.WriteString(body + "\n")
+	}
 	return rel, v.write(rel, b.String())
 }
 
