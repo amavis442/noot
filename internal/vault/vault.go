@@ -272,13 +272,11 @@ var agendaSections = []string{"Planned", "Doing", "Done"}
 // agendaSections under each.
 func (v *Vault) Agenda(day time.Time) (rel string, created bool, err error) {
 	year, week := day.ISOWeek()
-	rel = fmt.Sprintf("agenda/%d-W%02d.md", year, week)
+	rel = AgendaPath(day)
 	if exists(v.Abs(rel)) {
 		return rel, false, nil
 	}
-	y, m, d := day.Date()
-	monday := time.Date(y, m, d, 0, 0, 0, 0, day.Location())
-	monday = monday.AddDate(0, 0, -(int(monday.Weekday())+6)%7)
+	monday := MondayOf(day)
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "---\ntitle: Agenda %d-W%02d\ncreated: %s\ntags: [agenda]\n---\n\n", year, week, monday.Format("2006-01-02"))
@@ -290,6 +288,20 @@ func (v *Vault) Agenda(day time.Time) (rel string, created bool, err error) {
 		}
 	}
 	return rel, true, v.write(rel, b.String())
+}
+
+// AgendaPath is the vault-relative path of the agenda of the ISO week day
+// falls in: agenda/YYYY-Www.md.
+func AgendaPath(day time.Time) string {
+	year, week := day.ISOWeek()
+	return fmt.Sprintf("agenda/%d-W%02d.md", year, week)
+}
+
+// MondayOf returns the Monday of the ISO week day falls in, at midnight.
+func MondayOf(day time.Time) time.Time {
+	y, m, d := day.Date()
+	monday := time.Date(y, m, d, 0, 0, 0, 0, day.Location())
+	return monday.AddDate(0, 0, -(int(monday.Weekday())+6)%7)
 }
 
 func (v *Vault) write(rel, content string) error {

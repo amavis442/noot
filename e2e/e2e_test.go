@@ -980,6 +980,28 @@ func TestServeJournalAndReminders(t *testing.T) {
 		t.Errorf("noot agenda --print = %q, API said %q", got, week.Path)
 	}
 
+	// One day is edited on its own; the rest of the week, with the planned
+	// reminder, stays.
+	_, body = call("GET", "/api/agenda/vandaag", "")
+	var parts struct {
+		Days []struct{ Date, Content, Version string }
+	}
+	if err := json.Unmarshal([]byte(body), &parts); err != nil || len(parts.Days) != 7 {
+		t.Fatalf("agenda days = %s", body)
+	}
+	other := parts.Days[0]
+	if other.Date == today {
+		other = parts.Days[1]
+	}
+	dayEdit, _ := json.Marshal(map[string]string{"content": "- [ ] keyword-dunlin", "version": other.Version})
+	if code, body := call("PUT", "/api/agenda/"+other.Date+"/day", string(dayEdit)); code != http.StatusOK {
+		t.Fatalf("save day = %d %s", code, body)
+	}
+	contains(t, "agenda after day edit", e.read("v/"+week.Path), "keyword-dunlin", "Fiets ophalen", "keyword-godwit")
+	if code, _ := call("PUT", "/api/agenda/"+other.Date+"/day", string(dayEdit)); code != http.StatusConflict {
+		t.Errorf("stale day save = %d, want 409", code)
+	}
+
 	if code, body := call("POST", "/api/reminders/1/done", `{}`); code != http.StatusOK {
 		t.Fatalf("done = %d %s", code, body)
 	}
