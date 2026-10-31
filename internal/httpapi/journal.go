@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"time"
 
@@ -10,22 +9,37 @@ import (
 	"github.com/amavis442/noot/internal/vault"
 )
 
-// Journal is what the journal endpoints need from the app layer.
+// Journal is what the journal endpoint needs from the app layer.
 type Journal interface {
 	Journal(ctx context.Context, day time.Time) (*app.JournalDay, error)
-	SaveJournal(ctx context.Context, day time.Time, content, version string) (*app.JournalDay, error)
 }
 
-type journalHandler struct{ journal Journal }
+// Agenda is what the agenda endpoint needs from the app layer.
+type Agenda interface {
+	Agenda(ctx context.Context, day time.Time) (*app.AgendaWeek, error)
+}
+
+// Journal and agenda notes are saved like any other note, through PUT
+// /api/notes/{ref}; these endpoints find (or create) the note of a day.
+type dayHandler struct {
+	journal Journal
+	agenda  Agenda
+}
 
 // journalDay is a journal note as the API returns it.
 type journalDay struct {
 	note
-	Date    string `json:"date"`
-	Version string `json:"version"`
+	Date string `json:"date"`
 }
 
-func (h *journalHandler) get(w http.ResponseWriter, r *http.Request) {
+// agendaWeek is an agenda note as the API returns it.
+type agendaWeek struct {
+	note
+	Week   string `json:"week"`
+	Monday string `json:"monday"`
+}
+
+func (h *dayHandler) getJournal(w http.ResponseWriter, r *http.Request) {
 	day, ok := parseDay(w, r.PathValue("day"))
 	if !ok {
 		return
@@ -35,44 +49,30 @@ func (h *journalHandler) get(w http.ResponseWriter, r *http.Request) {
 		writeAppError(w, err)
 		return
 	}
-	writeJournal(w, j)
-}
-
-// journalEdit is the request body for saving a journal note: the whole file
-// and the version it was loaded with.
-type journalEdit struct {
-	Content string `json:"content"`
-	Version string `json:"version"`
-}
-
-func (h *journalHandler) put(w http.ResponseWriter, r *http.Request) {
-	day, ok := parseDay(w, r.PathValue("day"))
-	if !ok {
-		return
-	}
-	var e journalEdit
-	if !decodeJSON(w, r, &e) {
-		return
-	}
-	if e.Version == "" {
-		writeError(w, http.StatusBadRequest, errors.New("version is required: send the version the note was loaded with"))
-		return
-	}
-	j, err := h.journal.SaveJournal(r.Context(), day, e.Content, e.Version)
-	if err != nil {
-		writeAppError(w, err)
-		return
-	}
-	writeJournal(w, j)
-}
-
-func writeJournal(w http.ResponseWriter, j *app.JournalDay) {
 	n, err := render(j.Document)
 	if err != nil {
 		writeAppError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, journalDay{note: n, Date: j.Date, Version: j.Version})
+	writeJSON(w, http.StatusOK, journalDay{note: n, Date: j.Date})
+}
+
+func (h *dayHandler) getAgenda(w http.ResponseWriter, r *http.Request) {
+	day, ok := parseDay(w, r.PathValue("day"))
+	if !ok {
+		return
+	}
+	a, err := h.agenda.Agenda(r.Context(), day)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	n, err := render(a.Document)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, agendaWeek{note: n, Week: a.Week, Monday: a.Monday})
 }
 
 // parseDay reads a day the way the command line does (YYYY-MM-DD, today,

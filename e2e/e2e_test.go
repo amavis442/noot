@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -938,11 +939,11 @@ func TestServeJournalAndReminders(t *testing.T) {
 		t.Fatalf("journal today = %d %s", code, body)
 	}
 	edit, _ := json.Marshal(map[string]string{"content": day.Content + "keyword-curlew\n", "version": day.Version})
-	if code, body := call("PUT", "/api/journal/"+today, string(edit)); code != http.StatusOK {
+	if code, body := call("PUT", "/api/notes/journal%2F"+today+".md", string(edit)); code != http.StatusOK {
 		t.Fatalf("save journal = %d %s", code, body)
 	}
 	contains(t, "journal file", e.read("v/journal/"+today+".md"), "keyword-curlew")
-	if code, _ := call("PUT", "/api/journal/"+today, string(edit)); code != http.StatusConflict {
+	if code, _ := call("PUT", "/api/notes/journal%2F"+today+".md", string(edit)); code != http.StatusConflict {
 		t.Errorf("stale save = %d, want 409", code)
 	}
 	contains(t, "CLI finds the edit", e.ok("-V", "v", "search", "curlew"), "journal/"+today+".md")
@@ -954,6 +955,22 @@ func TestServeJournalAndReminders(t *testing.T) {
 		t.Fatalf("plan reminder = %d %s", code, body)
 	}
 	contains(t, "CLI lists it", e.ok("-V", "v", "reminder"), "Fiets ophalen")
+
+	// The agenda of this week holds the planned reminder and is edited like any note.
+	code, body = call("GET", "/api/agenda/vandaag", "")
+	var week struct{ Path, Content, Version string }
+	if err := json.Unmarshal([]byte(body), &week); err != nil || code != http.StatusOK || !strings.Contains(week.Content, "Fiets ophalen") {
+		t.Fatalf("agenda = %d %s", code, body)
+	}
+	agendaEdit, _ := json.Marshal(map[string]string{"content": week.Content + "- [ ] keyword-godwit\n", "version": week.Version})
+	if code, body := call("PUT", "/api/notes/"+url.PathEscape(week.Path), string(agendaEdit)); code != http.StatusOK {
+		t.Fatalf("save agenda = %d %s", code, body)
+	}
+	contains(t, "agenda file", e.read("v/"+week.Path), "keyword-godwit")
+	if got := strings.TrimSpace(e.ok("-V", "v", "agenda", "--print")); got != week.Path {
+		t.Errorf("noot agenda --print = %q, API said %q", got, week.Path)
+	}
+
 	if code, body := call("POST", "/api/reminders/1/done", `{}`); code != http.StatusOK {
 		t.Fatalf("done = %d %s", code, body)
 	}

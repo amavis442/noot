@@ -30,7 +30,7 @@ func TestCreateThenSearchAndRead(t *testing.T) {
 	}
 	t.Cleanup(func() { st.Close() })
 	svc := &app.Service{Vault: v, Store: st}
-	srv := httptest.NewServer(httpapi.New(httpapi.Ports{Notes: svc, Journal: svc, Reminders: svc}, fstest.MapFS{}))
+	srv := httptest.NewServer(httpapi.New(httpapi.Ports{Notes: svc, Journal: svc, Agenda: svc, Reminders: svc}, fstest.MapFS{}))
 	t.Cleanup(srv.Close)
 
 	res, err := http.Post(srv.URL+"/api/notes", "application/json",
@@ -89,7 +89,7 @@ func newServer(t *testing.T) (*httptest.Server, *vault.Vault) {
 	}
 	t.Cleanup(func() { st.Close() })
 	svc := &app.Service{Vault: v, Store: st}
-	srv := httptest.NewServer(httpapi.New(httpapi.Ports{Notes: svc, Journal: svc, Reminders: svc}, fstest.MapFS{}))
+	srv := httptest.NewServer(httpapi.New(httpapi.Ports{Notes: svc, Journal: svc, Agenda: svc, Reminders: svc}, fstest.MapFS{}))
 	t.Cleanup(srv.Close)
 	return srv, v
 }
@@ -126,7 +126,7 @@ func TestEditJournal(t *testing.T) {
 
 	edit, _ := json.Marshal(map[string]string{"content": day.Content + "keyword-plover\n", "version": day.Version})
 	var saved struct{ Version, HTML string }
-	if code := send(t, "PUT", srv.URL+"/api/journal/2026-10-31", string(edit), &saved); code != http.StatusOK {
+	if code := send(t, "PUT", srv.URL+"/api/notes/"+url.PathEscape(day.Path), string(edit), &saved); code != http.StatusOK {
 		t.Fatalf("save: %d", code)
 	}
 	var hits []domain.SearchHit
@@ -137,7 +137,7 @@ func TestEditJournal(t *testing.T) {
 
 	// The first version is stale now.
 	var e struct{ Error string }
-	if code := send(t, "PUT", srv.URL+"/api/journal/2026-10-31", string(edit), &e); code != http.StatusConflict {
+	if code := send(t, "PUT", srv.URL+"/api/notes/"+url.PathEscape(day.Path), string(edit), &e); code != http.StatusConflict {
 		t.Errorf("stale save: %d %+v", code, e)
 	}
 	b, _ := os.ReadFile(v.Abs(day.Path))
