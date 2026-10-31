@@ -81,6 +81,15 @@ func (p *Pane) Scroll(msg tea.KeyMsg) bool {
 	return true
 }
 
+// ScrollLines scrolls n lines down, or up when n is negative.
+func (p *Pane) ScrollLines(n int) {
+	if n < 0 {
+		p.vp.ScrollUp(-n)
+	} else {
+		p.vp.ScrollDown(n)
+	}
+}
+
 func (p *Pane) render() {
 	out, err := p.md.Render(p.source, p.width)
 	if err != nil {

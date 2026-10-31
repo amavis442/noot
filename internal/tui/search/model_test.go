@@ -3,6 +3,7 @@ package search_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -195,38 +196,62 @@ func TestTabLeavesTheSearchBarToPickAResult(t *testing.T) {
 	}
 }
 
-func TestPanelsSwitchWithSuperfileKeys(t *testing.T) {
+// TestConfirmOpensAndTheListKeepsTheArrows: as in superfile, enter/l/right
+// open the selected item and the list keeps the keyboard.
+func TestConfirmOpensAndTheListKeepsTheArrows(t *testing.T) {
 	m, _, ed := newModel()
-	kittest.Type(t, m, "rogge", "esc")
-	if m.Capturing() {
-		t.Fatal("esc cancels typing")
+	kittest.Type(t, m, "rogge", "tab")
+	kittest.Type(t, m, "enter", "down", "l", "up", "right", "j", "k")
+	if want := []string{"brood.md", "zuurdesem.md", "brood.md"}; !slices.Equal(ed.Opened, want) {
+		t.Fatalf("opened %v, want %v", ed.Opened, want)
 	}
-	for _, keys := range [][]string{{"tab", "H"}, {"L", "h"}, {"l", "left"}, {"enter", "backspace"}, {"right", "tab"}} {
-		kittest.Type(t, m, keys[0])
-		kittest.Type(t, m, "j") // scrolls the preview, so the selection stays
-		kittest.Type(t, m, keys[1])
-		kittest.Type(t, m, "e")
-		if last := ed.Opened[len(ed.Opened)-1]; last != "brood.md" {
-			t.Fatalf("%s then %s: j moved the selection to %s", keys[0], keys[1], last)
-		}
-	}
-	kittest.Type(t, m, "j", "e")
-	if last := ed.Opened[len(ed.Opened)-1]; last != "zuurdesem.md" {
-		t.Fatalf("back in the results j moves the selection, opened %s", last)
-	}
-	kittest.Type(t, m, "/")
-	if !m.Capturing() {
-		t.Fatal("/ goes back to the search bar")
+	if out := m.View(); !strings.Contains(out, "▸ brood") || m.Capturing() {
+		t.Fatalf("the arrows still move the selection in the results:\n%s", out)
 	}
 }
 
+func TestShiftArrowsScrollThePreview(t *testing.T) {
+	m, notes, ed := newModel()
+	var lines []string
+	for i := 1; i <= 60; i++ {
+		lines = append(lines, fmt.Sprintf("regel %d", i))
+	}
+	notes.notes["lang.md"] = strings.Join(lines, "\n\n")
+	kittest.Type(t, m, "regel", "tab", "J", "J", "shift+down")
+	if out := m.View(); strings.Contains(out, "regel 1 ") || !strings.Contains(out, "regel 4") {
+		t.Fatalf("J and shift+down scroll the preview:\n%s", out)
+	}
+	kittest.Type(t, m, "K", "shift+up", "e")
+	if !slices.Equal(ed.Opened, []string{"lang.md"}) {
+		t.Fatalf("scrolling keeps the selection, opened %v", ed.Opened)
+	}
+}
+
+func TestTabAndHSwitchBetweenSearchBarAndResults(t *testing.T) {
+	m, _, _ := newModel()
+	kittest.Type(t, m, "rogge", "tab")
+	if m.Capturing() {
+		t.Fatal("tab goes from the search bar to the results")
+	}
+	kittest.Type(t, m, "tab")
+	if !m.Capturing() {
+		t.Fatal("tab goes from the results back to the search bar")
+	}
+	kittest.Type(t, m, "esc", "H")
+	if !m.Capturing() {
+		t.Fatal("H goes to the previous panel, the search bar")
+	}
+	kittest.Type(t, m, "esc", "/")
+	if !m.Capturing() {
+		t.Fatal("/ goes to the search bar")
+	}
+}
 func TestFTogglesThePreview(t *testing.T) {
 	m, _, _ := newModel()
 	kittest.Type(t, m, "Bonen", "enter", "f")
 	if out := m.View(); strings.Contains(out, "# Koffie") || !strings.Contains(out, "koffie.md") {
 		t.Fatalf("f hides the preview, the results stay:\n%s", out)
 	}
-	kittest.Type(t, m, "l")
 	kittest.Type(t, m, "f")
 	if out := m.View(); !strings.Contains(out, "# Koffie") {
 		t.Fatalf("f shows the preview again:\n%s", out)
@@ -239,7 +264,7 @@ func TestHelpFollowsTheFocus(t *testing.T) {
 		t.Fatalf("search bar help = %q", got)
 	}
 	kittest.Type(t, m, "tab")
-	if got := kit.Short(m.Help()...); !strings.Contains(got, "enter/l open") || !strings.Contains(got, "/ zoek") {
+	if got := kit.Short(m.Help()...); !strings.Contains(got, "enter/l open in editor") || !strings.Contains(got, "/ zoek") {
 		t.Fatalf("results help = %q", got)
 	}
 }

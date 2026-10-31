@@ -21,6 +21,7 @@ func Key(name string) tea.KeyMsg {
 		"up": tea.KeyUp, "down": tea.KeyDown, "left": tea.KeyLeft, "right": tea.KeyRight,
 		"pgup": tea.KeyPgUp, "pgdown": tea.KeyPgDown, "backspace": tea.KeyBackspace,
 		"ctrl+c": tea.KeyCtrlC, "ctrl+n": tea.KeyCtrlN, "ctrl+p": tea.KeyCtrlP, "space": tea.KeySpace,
+		"shift+up": tea.KeyShiftUp, "shift+down": tea.KeyShiftDown,
 	}
 	if t, ok := named[name]; ok {
 		return tea.KeyMsg{Type: t}

@@ -24,10 +24,11 @@ func cmdTUI(opts *options) *cobra.Command {
   3 Agenda      the weekly agenda, day by day, opened at today; [ and ] browse weeks
   4 Reminders   add (ctrl+n), tick off (x), plan into the agenda (p), show done ones (.)
 
-The keys follow superfile's defaults: j/k or arrows move, enter/l/right opens,
-h/left/backspace goes back, tab/L and H switch panels, / searches, f toggles the
-preview, e opens what is shown in $VISUAL / $EDITOR, ? lists every key, q/esc
-quits. While typing, enter confirms and esc/ctrl+c cancels. 1-4 switch tabs.
+The keys follow superfile's defaults: j/k or arrows move, enter/l/right opens
+the selected note in $VISUAL / $EDITOR (e does too, in every tab), tab/L and H
+switch panels, / searches, f toggles the preview, ? lists every key, q/esc
+quits. J/K scroll the preview, which never takes the keyboard. While typing,
+enter confirms and esc/ctrl+c cancels. 1-4 switch tabs.
 
 Needs an interactive terminal; scripts and agents use the other commands.`,
 		Args: cobra.NoArgs,

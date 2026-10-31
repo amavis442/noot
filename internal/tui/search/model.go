@@ -49,14 +49,15 @@ type focus int
 const (
 	onSearchBar focus = iota
 	onResults
-	onPreview
 )
 
 // searchBarHeight is the boxed search field above the panels.
 const searchBarHeight = 3
 
 // Model is the search tab: a search bar over two panels, the results and the
-// preview of the selected note. The keys follow superfile.
+// preview of the selected note. The keys follow superfile: the results keep
+// the arrows, confirm opens the note, and the preview never takes the
+// keyboard; it scrolls with J/K.
 type Model struct {
 	ctx    context.Context
 	notes  Notes
@@ -101,13 +102,10 @@ func (m *Model) Capturing() bool { return m.focus == onSearchBar }
 // Help lists the keys of the part that has the keyboard.
 func (m *Model) Help() []key.Binding {
 	k := kit.Keys
-	switch m.focus {
-	case onSearchBar:
+	if m.focus == onSearchBar {
 		return []key.Binding{k.ConfirmTyping, k.CancelTyping, tabToResults, arrows}
-	case onPreview:
-		return []key.Binding{k.ListDown, k.ListUp, k.PageDown, k.PageUp, k.Parent, k.NextPanel, k.PreviousPanel, k.Edit, k.TogglePreview, k.SearchBar}
 	}
-	return []key.Binding{k.ListDown, k.ListUp, k.Confirm, k.NextPanel, k.PreviousPanel, k.Edit, k.TogglePreview, k.SearchBar}
+	return []key.Binding{k.ListDown, k.ListUp, k.Confirm, k.PreviewDown, k.PreviewUp, k.PageDown, k.PageUp, k.NextPanel, k.PreviousPanel, k.SearchBar, k.TogglePreview}
 }
 
 // Keys of the search bar that only exist while typing.
@@ -139,11 +137,8 @@ func (m *Model) previewWidth() int { return max(m.width-m.listWidth(), 10) }
 func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch m.focus {
-		case onSearchBar:
+		if m.focus == onSearchBar {
 			return m.searchBarKey(msg)
-		case onPreview:
-			return m.previewKey(msg)
 		}
 		return m.resultsKey(msg)
 	case hitsMsg:
@@ -214,36 +209,19 @@ func (m *Model) resultsKey(msg tea.KeyMsg) tea.Cmd {
 		return m.move(-m.perPage())
 	case key.Matches(msg, k.PageDown):
 		return m.move(m.perPage())
-	case key.Matches(msg, k.Confirm, k.NextPanel, k.PreviousPanel):
-		if m.showPreview && m.selectedPath() != "" {
-			m.setFocus(onPreview)
-		}
-	case key.Matches(msg, k.SearchBar):
-		m.setFocus(onSearchBar)
-	case key.Matches(msg, k.Edit):
+	case key.Matches(msg, k.Confirm, k.Edit):
 		return m.edit()
+	case key.Matches(msg, k.PreviewDown):
+		m.preview.ScrollLines(1)
+	case key.Matches(msg, k.PreviewUp):
+		m.preview.ScrollLines(-1)
+	case key.Matches(msg, k.NextPanel, k.PreviousPanel, k.SearchBar):
+		m.setFocus(onSearchBar)
 	case key.Matches(msg, k.TogglePreview):
 		m.togglePreview()
 	}
 	return nil
 }
-
-func (m *Model) previewKey(msg tea.KeyMsg) tea.Cmd {
-	k := kit.Keys
-	switch {
-	case m.preview.Scroll(msg):
-	case key.Matches(msg, k.Parent, k.NextPanel, k.PreviousPanel):
-		m.setFocus(onResults)
-	case key.Matches(msg, k.SearchBar):
-		m.setFocus(onSearchBar)
-	case key.Matches(msg, k.Edit):
-		return m.edit()
-	case key.Matches(msg, k.TogglePreview):
-		m.togglePreview()
-	}
-	return nil
-}
-
 func (m *Model) setFocus(f focus) {
 	m.focus = f
 	if f == onSearchBar {
@@ -255,9 +233,6 @@ func (m *Model) setFocus(f focus) {
 
 func (m *Model) togglePreview() {
 	m.showPreview = !m.showPreview
-	if !m.showPreview {
-		m.setFocus(onResults)
-	}
 	m.SetSize(m.width, m.height)
 }
 
@@ -344,7 +319,7 @@ func (m *Model) View() string {
 	if !m.showPreview {
 		return lipgloss.JoinVertical(lipgloss.Left, bar, results)
 	}
-	preview := kit.Box(m.preview.View(), m.previewWidth(), h, m.focus == onPreview)
+	preview := kit.Box(m.preview.View(), m.previewWidth(), h, false)
 	return lipgloss.JoinVertical(lipgloss.Left, bar, lipgloss.JoinHorizontal(lipgloss.Top, results, preview))
 }
 

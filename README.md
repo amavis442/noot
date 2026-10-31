@@ -139,8 +139,7 @@ De toetsen volgen de standaard van [superfile](https://superfile.dev/list/hotkey
 | Toets | Wat |
 |---|---|
 | `j`/`k`, `↓`/`↑`, `pgdn`/`pgup` | Omlaag/omhoog in een lijst of notitie |
-| `enter`, `l`, `→` | Openen: van de resultaten naar de notitie |
-| `h`, `←`, `backspace` | Terug: van de notitie naar de resultaten |
+| `enter`, `l`, `→` | Openen: de gekozen notitie in je editor |
 | `tab`/`L`, `H` (`shift+←`) | Volgend/vorig paneel |
 | `/` | Naar de zoekbalk |
 | `f` | Preview aan/uit |
@@ -149,11 +148,11 @@ De toetsen volgen de standaard van [superfile](https://superfile.dev/list/hotkey
 | `.` | Afgeronde reminders tonen/verbergen |
 | `enter` / `esc` of `ctrl+c` | Tijdens het typen: bevestigen / annuleren |
 
-Daarnaast, waar superfile niets voor heeft: `[` en `]` voor vorige/volgende dag of week, `t` voor vandaag, `x` om af te vinken en `p` om in te plannen.
+Daarnaast, waar superfile niets voor heeft: `J`/`K` (`shift+↓`/`↑`) om de preview te scrollen, `[` en `]` voor vorige/volgende dag of week, `t` voor vandaag, `x` om af te vinken en `p` om in te plannen.
 
 | Tab | Wat |
 |---|---|
-| **1 Zoeken** | Een zoekbalk met twee panelen eronder: de resultaten, die bijwerken terwijl je typt, en de gekozen notitie opgemaakt. `#tag` in de zoekopdracht filtert op tag. Na het typen brengt `tab`, `enter` of `esc` je naar de resultaten; het paneel met de focus heeft een gekleurde rand |
+| **1 Zoeken** | Een zoekbalk met twee panelen eronder: de resultaten, die bijwerken terwijl je typt, en de gekozen notitie opgemaakt. `#tag` in de zoekopdracht filtert op tag. Na het typen brengt `tab`, `enter` of `esc` je naar de resultaten, die de pijltjes houden; de preview krijgt nooit de focus, net als in superfile. Het paneel met de focus heeft een gekleurde rand |
 | **2 Vandaag** | De dagnotitie (wordt aangemaakt als hij ontbreekt) |
 | **3 Agenda** | De weekagenda per dag, geopend bij vandaag |
 | **4 Herinneringen** | De open reminders, te laat in het rood. Bij `ctrl+n` volgt na de tekst een uiterste datum (leeg is geen), bij `p` de dag (leeg is vandaag) |

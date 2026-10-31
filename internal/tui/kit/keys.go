@@ -38,12 +38,15 @@ type KeyMap struct {
 	Today    key.Binding
 	Done     key.Binding
 	Plan     key.Binding
+	// The preview never takes the keyboard, so the list keeps the arrows.
+	PreviewDown key.Binding
+	PreviewUp   key.Binding
 }
 
 // Keys follow superfile's default hotkeys
 // (https://superfile.dev/list/hotkey-list), so its users feel at home.
 var Keys = KeyMap{
-	Confirm:       key.NewBinding(key.WithKeys("enter", "right", "l"), key.WithHelp("enter/l", "open")),
+	Confirm:       key.NewBinding(key.WithKeys("enter", "right", "l"), key.WithHelp("enter/l", "open in editor")),
 	Quit:          key.NewBinding(key.WithKeys("q", "esc"), key.WithHelp("q/esc", "stop")),
 	ListUp:        key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "omhoog")),
 	ListDown:      key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "omlaag")),
@@ -69,6 +72,9 @@ var Keys = KeyMap{
 	Today:    key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "vandaag")),
 	Done:     key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "klaar")),
 	Plan:     key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "plan")),
+
+	PreviewDown: key.NewBinding(key.WithKeys("J", "shift+down"), key.WithHelp("J/K", "preview scrollen")),
+	PreviewUp:   key.NewBinding(key.WithKeys("K", "shift+up"), key.WithHelp("K", "preview omhoog")),
 }
 
 // Short renders bindings for the help line: "e bewerk · / zoek".
