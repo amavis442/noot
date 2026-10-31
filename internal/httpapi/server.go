@@ -63,6 +63,7 @@ func New(p Ports, assets fs.FS) http.Handler {
 	mux.HandleFunc("POST /api/preview", preview)
 	mux.HandleFunc("GET /api/journal/{day}", days.getJournal)
 	mux.HandleFunc("GET /api/agenda/{day}", days.getAgenda)
+	mux.HandleFunc("PUT /api/agenda/{day}/day", days.putAgendaDay)
 	mux.HandleFunc("GET /api/reminders", rh.list)
 	mux.HandleFunc("POST /api/reminders", rh.add)
 	mux.HandleFunc("POST /api/reminders/{n}/done", rh.done)

@@ -139,8 +139,7 @@ func (v *Vault) CompleteReminder(n int, now time.Time) (Reminder, error) {
 	if err != nil {
 		return r, nil
 	}
-	year, week := day.ISOWeek()
-	rel := fmt.Sprintf("agenda/%d-W%02d.md", year, week)
+	rel := AgendaPath(day)
 	b, err := os.ReadFile(v.Abs(rel))
 	if err != nil {
 		return r, nil // the agenda is gone; nothing to tick

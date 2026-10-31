@@ -84,7 +84,8 @@ main > .muted {
   max-width: 50rem;
 }
 
-.note.editing {
+.note.editing,
+.note:has(.editor) {
   max-width: none;
 }
 
@@ -223,7 +224,25 @@ button.secondary {
   margin-left: -1.2rem;
 }
 
-/* A divider above every day of the week; in the preview too. */
+/* A divider above every day of the week: the day cards, and the day
+   headings in the preview of the whole week. */
+.agenda-day {
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.agenda-day-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.agenda-day-head h2 {
+  margin: 0;
+}
+
 .agenda .markdown h2 {
   border-top: 1px solid var(--border);
   padding-top: 0.75rem;
