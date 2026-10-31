@@ -1,7 +1,7 @@
 # Runs on every pull request to main and on every push to main. The job names
-# ("format", "test (ubuntu-latest)", "test (windows-latest)") are the required
-# status checks in the main ruleset: renaming a job means updating the ruleset.
-# The "web" job builds and tests the React frontend in web/.
+# ("format", "test (ubuntu-latest)", "test (windows-latest)", "web") are the
+# required status checks in the main ruleset: renaming a job means updating the
+# ruleset. The "web" job builds and tests the React frontend in web/.
 name: CI
 
 on:
