@@ -351,25 +351,37 @@ measured against what noot last saw of the remote.`,
 }
 
 func printStatus(e *env, st app.StatusResult) {
+	p := e.paint
 	if len(st.Changes) > 0 {
 		fmt.Fprintf(e.out, "%d %s to commit:\n", len(st.Changes), plural(len(st.Changes), "change", "changes"))
 		for _, c := range st.Changes {
-			fmt.Fprintf(e.out, "  %s  %s\n", c.Status, c.Path)
+			fmt.Fprintf(e.out, "  %s  %s\n", changeStatus(p, c.Status), c.Path)
 		}
 	}
 	if st.Ahead > 0 {
-		fmt.Fprintf(e.out, "%d %s not pushed yet\n", st.Ahead, plural(st.Ahead, "commit", "commits"))
+		fmt.Fprintf(e.out, "%s not pushed yet\n", p.warning(fmt.Sprintf("%d %s", st.Ahead, plural(st.Ahead, "commit", "commits"))))
 	}
 	switch {
 	case !st.Remote && !st.Upstream:
-		fmt.Fprintln(e.out, "no remote: the next push only commits locally")
+		fmt.Fprintln(e.out, p.warning("no remote: the next push only commits locally"))
 	case !st.Upstream:
-		fmt.Fprintln(e.out, "no upstream yet: the next push sets it (origin)")
+		fmt.Fprintln(e.out, p.warning("no upstream yet: the next push sets it (origin)"))
 	case len(st.Changes) == 0 && st.Ahead == 0:
-		fmt.Fprintln(e.out, "nothing to push")
+		fmt.Fprintln(e.out, p.muted("nothing to push"))
 	}
 }
 
+// changeStatus colours a git status letter: added green, deleted red, the
+// rest (modified, renamed) yellow.
+func changeStatus(p painter, status string) string {
+	switch status {
+	case "A", "??":
+		return p.success(status)
+	case "D":
+		return p.danger(status)
+	}
+	return p.warning(status)
+}
 func plural(n int, one, many string) string {
 	if n == 1 {
 		return one

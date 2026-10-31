@@ -117,6 +117,8 @@ Elk leescommando werkt de index eerst incrementeel bij (op basis van mtime en gr
 | `pull` | Wijzigingen van elders binnenhalen (`pull --rebase --autostash`) en de index bijwerken |
 | `status` | Laten zien wat de volgende `push` meeneemt: gewijzigde bestanden (A/M/D) en commits die nog niet gepusht zijn. Kijkt alleen, zonder netwerk |
 
+In een terminal krijgen `search`, `reminder` en `status` kleur, in dezelfde stijl als `noot tui`: paden en treffers in de accentkleur, te late reminders in het rood, `A`/`M`/`D` in groen/geel/rood. De tekst zelf blijft precies hetzelfde. In een pipe of script, met `--json` of met `NO_COLOR` gezet is er geen kleur. In Git Bash/MSYS2 (mintty) ziet noot geen terminal en blijft de uitvoer ook zonder kleur.
+
 Overal kun je `--json` toevoegen voor scripts, fzf of een AI-agent. Bijvoorbeeld:
 
 ```bash
@@ -271,6 +273,7 @@ internal/cli/             cobra-commando's en output
 internal/httpapi/         HTTP-adapter voor noot serve: JSON-API over de use cases + statische bestanden
 internal/tui/             Terminal-adapter voor noot tui (Bubble Tea): één package per tab, gedeelde stijl in tui/kit
 internal/editor/          $VISUAL/$EDITOR-commando, gedeeld door noot open en noot tui
+internal/theme/           Kleurenpalet, gedeeld door noot tui en de gekleurde uitvoer van de commando's
 web/                      React-frontend; web/dist wordt via go:embed in de binary gezet
 ```
 
