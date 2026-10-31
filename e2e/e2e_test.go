@@ -6,12 +6,16 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -821,4 +825,97 @@ func frontmatterID(t *testing.T, note string) string {
 	}
 	t.Fatalf("no id in frontmatter:\n%s", note)
 	return ""
+}
+
+func TestServe(t *testing.T) {
+	e := newEnv(t)
+	e.ok("init", e.path("v"), "--name", "v")
+	e.write("v/zettels/bestaand.md", "# Bestaand\nkeyword-heron, zie [[Nieuw idee]]")
+
+	cmd := exec.Command(bin, "-V", "v", "serve", "--addr", "127.0.0.1:0")
+	cmd.Dir, cmd.Env = e.cwd, e.environ()
+	var out syncBuffer
+	cmd.Stdout, cmd.Stderr = &out, &out
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
+
+	addr := regexp.MustCompile(`http://127\.0\.0\.1:\d+`)
+	waitFor(t, "server start", func() bool { return addr.MatchString(out.String()) })
+	base := addr.FindString(out.String())
+
+	get := func(path string) (int, string) {
+		t.Helper()
+		res, err := http.Get(base + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		b, _ := io.ReadAll(res.Body)
+		return res.StatusCode, string(b)
+	}
+
+	if code, body := get("/"); code != http.StatusOK || !strings.Contains(body, "noot") {
+		t.Errorf("GET / = %d\n%s", code, body)
+	}
+	if code, body := get("/api/search?q=heron"); code != http.StatusOK || !strings.Contains(body, "zettels/bestaand.md") {
+		t.Errorf("search existing = %d %s", code, body)
+	}
+
+	res, err := http.Post(base+"/api/notes", "application/json", strings.NewReader(`{"title":"Nieuw idee","body":"keyword-osprey"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(res.Body)
+	res.Body.Close()
+	if res.StatusCode != http.StatusCreated || !strings.Contains(string(b), `"path":"zettels/nieuw-idee.md"`) {
+		t.Fatalf("create = %d %s", res.StatusCode, b)
+	}
+	contains(t, "created file", e.read("v/zettels/nieuw-idee.md"), "title: Nieuw idee", "keyword-osprey")
+
+	if code, body := get("/api/search?q=osprey"); code != http.StatusOK || !strings.Contains(body, "zettels/nieuw-idee.md") {
+		t.Errorf("search created = %d %s", code, body)
+	}
+	if code, body := get("/api/notes/Nieuw%20idee"); code != http.StatusOK || !strings.Contains(body, "keyword-osprey") {
+		t.Errorf("read created = %d %s", code, body)
+	}
+	if code, body := get("/api/notes/zettels%2Fbestaand.md"); code != http.StatusOK || !strings.Contains(body, `href=\"#/note/Nieuw%20idee\"`) {
+		t.Errorf("read rendered link = %d %s", code, body)
+	}
+	contains(t, "CLI sees the note", e.ok("-V", "v", "search", "osprey"), "zettels/nieuw-idee.md")
+
+	// Files changed outside the server show up without a restart.
+	e.write("v/zettels/extern.md", "# Extern\nkeyword-kestrel")
+	waitFor(t, "watched file searchable", func() bool {
+		_, body := get("/api/search?q=kestrel")
+		return strings.Contains(body, "zettels/extern.md")
+	})
+
+	// A foreign Host header (DNS rebinding) is refused.
+	req, _ := http.NewRequest("GET", base+"/api/search?q=heron", nil)
+	req.Host = "evil.example"
+	if res, err := http.DefaultClient.Do(req); err != nil || res.StatusCode != http.StatusForbidden {
+		t.Errorf("foreign host: %v %v", res, err)
+	} else {
+		res.Body.Close()
+	}
+}
+
+// syncBuffer is a bytes.Buffer that a running process and the test may use at once.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }

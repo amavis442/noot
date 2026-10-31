@@ -4,6 +4,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -131,7 +132,19 @@ func (s *Service) MustResolve(ctx context.Context, ref string) (*domain.NoteRef,
 		return nil, err
 	}
 	if r == nil {
-		return nil, fmt.Errorf("no note matches %q (tried id, path, file name, title and aliases)", ref)
+		return nil, notFoundError{ref}
 	}
 	return r, nil
 }
+
+// ErrNotFound matches (errors.Is) the error MustResolve returns for a
+// reference that resolves to no note.
+var ErrNotFound = errors.New("note not found")
+
+type notFoundError struct{ ref string }
+
+func (e notFoundError) Error() string {
+	return fmt.Sprintf("no note matches %q (tried id, path, file name, title and aliases)", e.ref)
+}
+
+func (e notFoundError) Is(target error) bool { return target == ErrNotFound }

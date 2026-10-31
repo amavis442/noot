@@ -97,7 +97,7 @@ func TestNewNoteGivesEveryNoteItsOwnID(t *testing.T) {
 	// already uses.
 	seen := map[string]string{}
 	for _, title := range []string{"Eerste", "Tweede", "Derde"} {
-		rel, err := v.NewNote(title, "zettels", nil, now)
+		rel, err := v.NewNote(title, "zettels", nil, "", now)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -112,5 +112,37 @@ func TestNewNoteGivesEveryNoteItsOwnID(t *testing.T) {
 		if got := frontmatterField(t, v, rel, "created"); got != "2026-10-29" {
 			t.Errorf("%s: created = %q, want 2026-10-29", rel, got)
 		}
+	}
+}
+
+func TestNewNoteWritesBodyBelowTheHeading(t *testing.T) {
+	v := &Vault{Root: t.TempDir()}
+	if err := v.Init(config.KindPersonal); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 10, 31, 9, 0, 0, 0, time.UTC)
+
+	rel, err := v.NewNote("Met tekst", "zettels", []string{"idee"}, "Eerste regel.\nTweede regel.", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(v.Abs(rel))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(string(b), "---\n\n# Met tekst\n\nEerste regel.\nTweede regel.\n") {
+		t.Errorf("note does not end with heading and body:\n%s", b)
+	}
+
+	rel, err = v.NewNote("Zonder tekst", "zettels", nil, "  \n", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err = os.ReadFile(v.Abs(rel))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(string(b), "---\n\n# Zonder tekst\n\n") {
+		t.Errorf("blank body should leave only the heading:\n%s", b)
 	}
 }

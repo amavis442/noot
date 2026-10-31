@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -168,18 +169,14 @@ func cmdCat(opts *options) *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return run(cmd, opts, true, func(e *env) error {
-				ref, err := e.svc.MustResolve(e.ctx, args[0])
-				if err != nil {
-					return err
-				}
-				b, err := os.ReadFile(e.svc.Vault.Abs(ref.Path))
+				doc, err := e.svc.ReadNote(e.ctx, args[0])
 				if err != nil {
 					return err
 				}
 				if opts.asJSON {
-					return e.json(map[string]string{"id": ref.ID, "path": ref.Path, "title": ref.Title, "content": string(b)})
+					return e.json(doc)
 				}
-				_, err = e.out.Write(b)
+				_, err = io.WriteString(e.out, doc.Content)
 				return err
 			})
 		},
