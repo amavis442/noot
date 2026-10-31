@@ -23,7 +23,7 @@ Patrick's global `~/.claude/CLAUDE.md` applies; the points that matter most here
 
 - Converse in Dutch; code, comments, commit messages, PRs and tags in English. The README is Dutch.
 - Commit as `Amavis442 <patteun8@gmail.com>`. Never add Co-Authored-By or other AI attribution trailers.
-- **noot is the one code repo where work goes straight to `main`** (no feature branches needed). Tags are still Patrick's. Every other code repo: `feat/*` / `fix/*` branches + PR, never push `main` or tags.
+- **`main` is protected on GitHub: never push to it.** Every change starts with a work item (a GitHub issue, `gh issue create`) and a branch named after it: `<type>/<issue-nr>-<short-slug>`, e.g. `feat/12-vault-export` or `fix/13-watch-crash` (`chore/` for housekeeping). Commit there, push the branch and open a PR that references the issue (`Closes #<nr>`). Patrick merges and tags. This applies to the noot repo only. Every other code repo: `feat/*` / `fix/*` branches + PR, never push `main` or tags.
 - TDD; unit, integration **and** end-to-end tests (`make test` runs all three). No exceptions.
 
 **Accepted exception:** noot uses idiomatic Go layering (`internal/domain`, `app`, `storage`, `cli`) instead of feature-first folders. It is a small CLI with one domain; the dependency rule still holds (domain has no project imports, storage implements an `app` port).
