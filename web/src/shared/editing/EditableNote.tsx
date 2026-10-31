@@ -9,10 +9,14 @@ interface Props<T extends Note> {
   header: (note: T) => ReactNode;
   /** Extra class for the note, so a kind of note can have its own style. */
   className?: string;
+  /** The text of the button that edits the whole note. */
+  editLabel?: string;
+  /** Shows the note while it is not edited as a whole; the rendered HTML by default. */
+  view?: (note: T) => ReactNode;
 }
 
 /** A note to read, with a button to edit the whole file. */
-export function EditableNote<T extends Note>({ state, header, className }: Props<T>) {
+export function EditableNote<T extends Note>({ state, header, className, editLabel = "Bewerken", view }: Props<T>) {
   const { note, error, conflict, saving, save, reload } = state;
   const [editing, setEditing] = useState(false);
 
@@ -55,10 +59,14 @@ export function EditableNote<T extends Note>({ state, header, className }: Props
       ) : (
         <>
           <button type="button" onClick={() => setEditing(true)}>
-            Bewerken
+            {editLabel}
           </button>
-          {/* The server renders the Markdown without raw HTML, so this is safe. */}
-          <div className="markdown" dangerouslySetInnerHTML={{ __html: note.html }} />
+          {view ? (
+            view(note)
+          ) : (
+            /* The server renders the Markdown without raw HTML, so this is safe. */
+            <div className="markdown" dangerouslySetInnerHTML={{ __html: note.html }} />
+          )}
         </>
       )}
     </article>
