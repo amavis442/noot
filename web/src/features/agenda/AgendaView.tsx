@@ -10,6 +10,7 @@ import { AgendaDayCard } from "./AgendaDayCard";
  */
 export function AgendaView({ day }: { day: string }) {
   const state = useEditableNote(day, getAgenda);
+  const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   return (
     <EditableNote
       state={state}
@@ -20,9 +21,12 @@ export function AgendaView({ day }: { day: string }) {
         <>
           {/* The server renders the Markdown without raw HTML, so this is safe. */}
           <div className="markdown" dangerouslySetInnerHTML={{ __html: w.intro_html }} />
-          {w.days.map((d) => (
-            <AgendaDayCard key={d.date} day={d} path={w.path} refresh={state.refresh} />
-          ))}
+          {w.days.map((d) => {
+            const inputDate = new Date(d.date)
+            const dayIndex = inputDate.getDay()
+            const currentDay = dayNames[dayIndex]
+            return <AgendaDayCard key={d.date} day={d} dayname={currentDay} path={w.path} refresh={state.refresh} />
+          })}        
         </>
       )}
     />

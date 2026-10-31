@@ -232,6 +232,18 @@ button.secondary {
   margin-top: 1.5rem;
 }
 
+.agenda-monday {
+  background-color:#9aa0a6;
+}
+.agenda-tuesday {
+  background-color:#9aa0a6;
+}
+
+.agenda-wednesday {
+  background-color:#9aa0a6;
+}
+
+
 .agenda-day-head {
   display: flex;
   justify-content: space-between;

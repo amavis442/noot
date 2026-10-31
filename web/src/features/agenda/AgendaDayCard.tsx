@@ -5,6 +5,7 @@ import { useDaySave } from "./useDaySave";
 
 interface Props {
   day: AgendaDay;
+  dayname: string;
   /** The agenda note, so links in the preview resolve as they will once saved. */
   path: string;
   /** Loads the week again, after a save or to drop a conflict. */
@@ -12,7 +13,7 @@ interface Props {
 }
 
 /** One day of the agenda, to read or to edit on its own. */
-export function AgendaDayCard({ day, path, refresh }: Props) {
+export function AgendaDayCard({ day, dayname, path, refresh }: Props) {
   const [editing, setEditing] = useState(false);
   const { save, saving, error, conflict } = useDaySave(day, refresh);
 
@@ -28,7 +29,7 @@ export function AgendaDayCard({ day, path, refresh }: Props) {
   }
 
   return (
-    <section className="agenda-day" aria-labelledby={`day-${day.date}`}>
+    <section className={`agenda-day agenda-${dayname.toLowerCase()}`} aria-labelledby={`day-${day.date}`}>
       <div className="agenda-day-head">
         <h2 id={`day-${day.date}`}>{day.heading}</h2>
         {!editing && (
