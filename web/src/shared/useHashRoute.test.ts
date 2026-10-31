@@ -14,6 +14,8 @@ describe("parseRoute", () => {
     expect(parseRoute("#/journal")).toEqual({ name: "journal", day: "today" });
     expect(parseRoute("#/journal/2026-10-31")).toEqual({ name: "journal", day: "2026-10-31" });
     expect(parseRoute("#/reminders")).toEqual({ name: "reminders" });
+    expect(parseRoute("#/agenda")).toEqual({ name: "agenda", day: "today" });
+    expect(parseRoute("#/agenda/2026-11-02")).toEqual({ name: "agenda", day: "2026-11-02" });
   });
 
   it("treats a malformed escape as home", () => {

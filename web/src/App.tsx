@@ -1,3 +1,4 @@
+import { AgendaView } from "./features/agenda/AgendaView";
 import { JournalView } from "./features/journal/JournalView";
 import { NewNoteForm } from "./features/notes/NewNoteForm";
 import { NoteView } from "./features/notes/NoteView";
@@ -16,6 +17,7 @@ export function App() {
         </a>
         <nav className="main-nav">
           <a href="#/journal">Vandaag</a>
+          <a href="#/agenda">Agenda</a>
           <a href="#/reminders">Reminders</a>
           <a href="#/new" className="button">
             Nieuwe notitie
@@ -29,6 +31,7 @@ export function App() {
         {route.name === "note" && <NoteView key={route.ref} noteRef={route.ref} />}
         {route.name === "new" && <NewNoteForm />}
         {route.name === "journal" && <JournalView key={route.day} day={route.day} />}
+        {route.name === "agenda" && <AgendaView key={route.day} day={route.day} />}
         {route.name === "reminders" && <RemindersPage />}
         {route.name === "home" && <p className="muted">Zoek een notitie of maak een nieuwe.</p>}
       </main>

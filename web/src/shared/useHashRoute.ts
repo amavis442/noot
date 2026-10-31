@@ -5,10 +5,12 @@ export type Route =
   | { name: "new" }
   | { name: "note"; ref: string }
   | { name: "journal"; day: string }
+  | { name: "agenda"; day: string }
   | { name: "reminders" };
 
 const notePrefix = "#/note/";
 const journalPrefix = "#/journal/";
+const agendaPrefix = "#/agenda/";
 
 /** Reads a route from location.hash; anything unknown is home. */
 export function parseRoute(hash: string): Route {
@@ -23,6 +25,12 @@ export function parseRoute(hash: string): Route {
   }
   if (hash.startsWith(journalPrefix)) {
     return { name: "journal", day: hash.slice(journalPrefix.length) };
+  }
+  if (hash === "#/agenda") {
+    return { name: "agenda", day: "today" };
+  }
+  if (hash.startsWith(agendaPrefix)) {
+    return { name: "agenda", day: hash.slice(agendaPrefix.length) };
   }
   if (hash.startsWith(notePrefix)) {
     try {

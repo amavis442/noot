@@ -8,7 +8,7 @@ interface Props {
 }
 
 /** A textarea for the whole note, frontmatter included. */
-export function JournalEditor({ initial, saving, onSave, onCancel }: Props) {
+export function NoteEditor({ initial, saving, onSave, onCancel }: Props) {
   const [content, setContent] = useState(initial);
 
   function onSubmit(e: FormEvent) {

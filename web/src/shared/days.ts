@@ -10,3 +10,8 @@ export function shiftDay(date: string, n: number): string {
 export function journalHref(day: string): string {
   return `#/journal/${day}`;
 }
+
+/** The frontend route that shows the agenda of the week day falls in. */
+export function agendaHref(day: string): string {
+  return `#/agenda/${day}`;
+}
