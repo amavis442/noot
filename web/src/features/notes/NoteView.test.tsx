@@ -72,4 +72,16 @@ describe("NoteView", () => {
     expect(screen.getByText("tekst")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it("marks the note as being edited, so the layout can give it the full width", async () => {
+    stubFetch(alpha("v1", "tekst", "<p>tekst</p>"));
+    render(<NoteView noteRef="zettels/a.md" />);
+
+    const article = await screen.findByRole("article");
+    expect(article).not.toHaveClass("editing");
+    await userEvent.click(screen.getByRole("button", { name: /bewerken/i }));
+    expect(article).toHaveClass("editing");
+    await userEvent.click(screen.getByRole("button", { name: /annuleren/i }));
+    expect(article).not.toHaveClass("editing");
+  });
 });

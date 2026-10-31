@@ -72,7 +72,20 @@ aside {
 
 main {
   padding: 1rem 2rem;
+  min-width: 0;
+}
+
+/* A comfortable line length for reading and forms; an editor with its
+   preview takes the whole panel. */
+.note,
+.new-note,
+.reminders,
+main > .muted {
   max-width: 50rem;
+}
+
+.note.editing {
+  max-width: none;
 }
 
 input,
@@ -199,9 +212,27 @@ button.secondary {
   gap: 0.3rem;
 }
 
+/* Task list items: the checkbox sits before the text, not stretched. */
+.markdown input[type="checkbox"] {
+  width: auto;
+  margin: 0 0.4rem 0 0;
+}
+
+.markdown li:has(> input[type="checkbox"]) {
+  list-style: none;
+  margin-left: -1.2rem;
+}
+
+/* A divider above every day of the week; in the preview too. */
+.agenda .markdown h2 {
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+  margin-top: 1.5rem;
+}
+
 .editor-panes {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 1rem;
   align-items: start;
 }
@@ -218,6 +249,8 @@ button.secondary {
 .editor textarea {
   font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
   font-size: 0.9rem;
+  min-height: 60vh;
+  resize: vertical;
 }
 
 .actions {

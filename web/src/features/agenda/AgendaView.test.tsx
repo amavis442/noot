@@ -28,6 +28,12 @@ describe("AgendaView", () => {
     expect(screen.getByRole("link", { name: /volgende week/i })).toHaveAttribute("href", "#/agenda/2026-11-09");
   });
 
+  it("marks the note as an agenda, so the days get dividers", async () => {
+    stubFetch(week);
+    render(<AgendaView day="today" />);
+    expect(await screen.findByRole("article")).toHaveClass("note", "agenda");
+  });
+
   it("edits the week like any note", async () => {
     const fetchMock = stubFetch(week, {
       body: { ...week.body, week: undefined, monday: undefined, version: "w2", html: "<p>Sporten</p>" },

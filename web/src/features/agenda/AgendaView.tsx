@@ -6,7 +6,7 @@ import { useEditableNote } from "../../shared/editing/useEditableNote";
 /** The agenda of the week day falls in (YYYY-MM-DD or a word such as today), to read or edit. */
 export function AgendaView({ day }: { day: string }) {
   const state = useEditableNote(day, getAgenda);
-  return <EditableNote state={state} header={(w) => <WeekNav week={w} />} />;
+  return <EditableNote state={state} header={(w) => <WeekNav week={w} />} className="agenda" />;
 }
 
 function WeekNav({ week }: { week: AgendaWeek }) {
