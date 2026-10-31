@@ -1057,3 +1057,20 @@ func TestTUINeedsATerminal(t *testing.T) {
 	contains(t, "tui help", e.ok("tui", "--help"), "Search", "Today", "Agenda", "Reminders", "$EDITOR")
 	contains(t, "root help", e.ok("--help"), "tui")
 }
+
+// TestPipedOutputHasNoColours: colours are only for a terminal, so scripts
+// and agents keep reading plain text.
+func TestPipedOutputHasNoColours(t *testing.T) {
+	e := newEnv(t)
+	e.ok("init", e.path("v"), "--name", "v")
+	e.write("v/zettels/brood.md", "# Brood\n\nVoeden met rogge.\n")
+	e.ok("-V", "v", "reminder", "Tandarts bellen", "--due", "2020-01-01")
+	for _, args := range [][]string{{"search", "rogge"}, {"reminder"}, {"search", "zzzz"}} {
+		out := e.ok(append([]string{"-V", "v"}, args...)...)
+		if strings.Contains(out, "\x1b") {
+			t.Errorf("noot %s wrote escape codes to a pipe:\n%q", strings.Join(args, " "), out)
+		}
+	}
+	contains(t, "plain search", e.ok("-V", "v", "search", "rogge"), "zettels/brood.md  —  Brood", "«rogge»")
+	contains(t, "plain reminder", e.ok("-V", "v", "reminder"), "[ ] Tandarts bellen  due 2020-01-01 (overdue)")
+}

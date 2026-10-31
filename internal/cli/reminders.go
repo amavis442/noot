@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"text/tabwriter"
 	"time"
+	"unicode/utf8"
 
 	"github.com/amavis442/noot/internal/vault"
 	"github.com/spf13/cobra"
@@ -169,37 +169,69 @@ func listReminders(cmd *cobra.Command, opts *options, all bool) error {
 		if opts.asJSON {
 			return e.json(rs)
 		}
-		if len(rs) == 0 {
-			fmt.Fprintln(e.out, "no open reminders")
-			return nil
-		}
-		today := time.Now().Format("2006-01-02")
-		tw := tabwriter.NewWriter(e.out, 0, 4, 2, ' ', 0)
-		for _, r := range rs {
-			box := "[ ]"
-			if r.Done {
-				box = "[x]"
-			}
-			var meta []string
-			if r.Due != "" {
-				due := "due " + r.Due
-				if !r.Done && r.Due < today {
-					due += " (overdue)"
-				}
-				meta = append(meta, due)
-			}
-			if r.Planned != "" {
-				meta = append(meta, "planned "+r.Planned)
-			}
-			if r.DoneOn != "" {
-				meta = append(meta, "done "+r.DoneOn)
-			}
-			fmt.Fprintf(tw, "%3d\t%s %s\t%s\n", r.N, box, r.Text, strings.Join(meta, ", "))
-		}
-		return tw.Flush()
+		return printReminders(e, rs, time.Now().Format("2006-01-02"))
 	})
 }
 
+// printReminders lists rs in three columns: number, box and text, dates.
+// The columns are padded as text/tabwriter did before the output had
+// colours, by the width of the plain text, so colour codes do not shift them.
+func printReminders(e *env, rs []vault.Reminder, today string) error {
+	p := e.paint
+	if len(rs) == 0 {
+		_, err := fmt.Fprintln(e.out, p.muted("no open reminders"))
+		return err
+	}
+	type row struct{ num, text, meta, textStyled, metaStyled string }
+	rows := make([]row, 0, len(rs))
+	numW, textW := 0, 0
+	for _, r := range rs {
+		box := "[ ]"
+		if r.Done {
+			box = "[x]"
+		}
+		var meta, styled []string
+		if r.Due != "" {
+			due := "due " + r.Due
+			if !r.Done && r.Due < today {
+				due += " (overdue)"
+				styled = append(styled, p.danger(due))
+			} else {
+				styled = append(styled, p.muted(due))
+			}
+			meta = append(meta, due)
+		}
+		if r.Planned != "" {
+			meta = append(meta, "planned "+r.Planned)
+			styled = append(styled, p.muted("planned "+r.Planned))
+		}
+		if r.DoneOn != "" {
+			meta = append(meta, "done "+r.DoneOn)
+			styled = append(styled, p.muted("done "+r.DoneOn))
+		}
+		text := box + " " + r.Text
+		textStyled := text
+		if r.Done {
+			textStyled = p.muted(text)
+		}
+		rw := row{num: fmt.Sprintf("%3d", r.N), text: text, meta: strings.Join(meta, ", "), textStyled: textStyled, metaStyled: strings.Join(styled, ", ")}
+		numW, textW = max(numW, utf8.RuneCountInString(rw.num)), max(textW, utf8.RuneCountInString(rw.text))
+		rows = append(rows, rw)
+	}
+	const gap = 2 // tabwriter padding
+	for _, rw := range rows {
+		line := padRight(p.muted(rw.num), rw.num, numW+gap) + padRight(rw.textStyled, rw.text, textW+gap) + rw.metaStyled
+		if _, err := fmt.Fprintln(e.out, line); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// padRight pads styled, whose plain text is plain, with spaces to width runes.
+func padRight(styled, plain string, width int) string {
+	return styled + strings.Repeat(" ", max(width-utf8.RuneCountInString(plain), 0))
+}
 func reminderNumbers(args []string) ([]int, error) {
 	var ns []int
 	for _, a := range args {

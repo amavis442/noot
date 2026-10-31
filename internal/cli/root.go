@@ -76,6 +76,7 @@ type env struct {
 	store *sqlite.Store
 	name  string // registered vault name, "" when unregistered
 	out   io.Writer
+	paint painter // colours for out; off when it is not a terminal
 	opts  *options
 }
 
@@ -196,7 +197,9 @@ func runAt(cmd *cobra.Command, opts *options, root, name string, sync bool, fn f
 	}
 	defer store.Close()
 
-	e := &env{ctx: cmd.Context(), svc: &app.Service{Vault: v, Store: store}, store: store, name: name, out: cmd.OutOrStdout(), opts: opts}
+	paint, restore := painterFor(opts, cmd.OutOrStdout())
+	defer restore()
+	e := &env{ctx: cmd.Context(), svc: &app.Service{Vault: v, Store: store}, store: store, name: name, out: cmd.OutOrStdout(), paint: paint, opts: opts}
 	if sync && !opts.noSync {
 		st, err := e.svc.Sync(e.ctx, false)
 		if err != nil {

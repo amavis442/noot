@@ -1,17 +1,18 @@
 package kit
 
 import (
+	"github.com/amavis442/noot/internal/theme"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
 
-// Colours adapt to a light or dark terminal background.
+// The palette is shared with the styled output of the commands.
 var (
-	accent  = lipgloss.AdaptiveColor{Light: "#6B4FBB", Dark: "#B8A2FF"}
-	muted   = lipgloss.AdaptiveColor{Light: "#6C6C6C", Dark: "#9A9A9A"}
-	danger  = lipgloss.AdaptiveColor{Light: "#C0392B", Dark: "#FF7B72"}
-	success = lipgloss.AdaptiveColor{Light: "#2E7D32", Dark: "#7EE787"}
-	panel   = lipgloss.AdaptiveColor{Light: "#D6D0EE", Dark: "#3D3557"}
+	accent  = theme.Accent
+	muted   = theme.Muted
+	danger  = theme.Danger
+	success = theme.Success
+	panel   = theme.Panel
 )
 
 // The theme of the terminal UI.

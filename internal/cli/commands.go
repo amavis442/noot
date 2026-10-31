@@ -155,14 +155,16 @@ func cmdSearch(opts *options) *cobra.Command {
 				enc.SetIndent("", "  ")
 				return enc.Encode(res)
 			}
-			e := &env{out: cmd.OutOrStdout()}
+			paint, restore := painterFor(opts, cmd.OutOrStdout())
+			defer restore()
+			e := &env{out: cmd.OutOrStdout(), paint: paint}
 			total := 0
 			for _, r := range res {
 				total += len(r.Hits)
 				printHits(e, r.Vault, r.Hits)
 			}
 			if total == 0 {
-				fmt.Fprintln(e.out, "no matches")
+				fmt.Fprintln(e.out, e.paint.muted("no matches"))
 			}
 			return nil
 		},
@@ -176,16 +178,17 @@ func cmdSearch(opts *options) *cobra.Command {
 
 func printHits(e *env, vaultName string, hits []domain.SearchHit) {
 	if vaultName == "" && len(hits) == 0 {
-		fmt.Fprintln(e.out, "no matches")
+		fmt.Fprintln(e.out, e.paint.muted("no matches"))
 	}
+	p := e.paint
 	for _, h := range hits {
 		prefix := ""
 		if vaultName != "" {
-			prefix = "[" + vaultName + "] "
+			prefix = p.muted("["+vaultName+"]") + " "
 		}
-		fmt.Fprintf(e.out, "%s%s  —  %s\n", prefix, h.Path, h.Title)
+		fmt.Fprintf(e.out, "%s%s  %s  %s\n", prefix, p.path(h.Path), p.muted("—"), p.title(h.Title))
 		if h.Snippet != "" {
-			fmt.Fprintf(e.out, "    %s\n", h.Snippet)
+			fmt.Fprintf(e.out, "    %s\n", p.snippet(h.Snippet))
 		}
 	}
 }
