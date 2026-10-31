@@ -112,6 +112,7 @@ Elk leescommando werkt de index eerst incrementeel bij (op basis van mtime en gr
 | `open <note> [--print]` | Notitie openen via id, pad, bestandsnaam, titel of alias |
 | `watch` | Index live bijhouden (Ctrl+C om te stoppen) |
 | `serve [--addr 127.0.0.1:4242]` | Web-UI om te zoeken, notities te maken en te bewerken (ook de dagnotitie en de weekagenda) en reminders te beheren, plus een JSON-API (zie [Web-UI](#web-ui)). Houdt de index live bij zoals `watch` |
+| `tui` | Interactieve terminal-UI met zoeken, dagnotitie, weekagenda en reminders (zie [Terminal-UI](#terminal-ui)) |
 | `push [-m melding] [--no-pull]` | Alles committen en pushen: `git add -A`, commit, `pull --rebase`, `push` |
 | `pull` | Wijzigingen van elders binnenhalen (`pull --rebase --autostash`) en de index bijwerken |
 | `status` | Laten zien wat de volgende `push` meeneemt: gewijzigde bestanden (A/M/D) en commits die nog niet gepusht zijn. Kijkt alleen, zonder netwerk |
@@ -123,6 +124,26 @@ noot search --json repository | jq -r '.[].path' | fzf --preview 'bat --color=al
 ```
 
 `<note>` wordt in deze volgorde opgezocht: **id → pad → bestandsnaam → titel → alias**, zonder onderscheid tussen hoofd- en kleine letters. Diezelfde volgorde wordt gebruikt om `[[wikilinks]]` op te lossen.
+
+## Terminal-UI
+
+```bash
+noot tui                          # de vault die je ook met -V, -A of de huidige map kiest
+noot -A tui
+```
+
+`noot tui` opent de vault schermvullend in de terminal (PowerShell, Windows Terminal en Linux-terminals), met vier tabs. Wisselen doe je met `tab` of `1`-`4`; stoppen met `q` of `ctrl+c`.
+
+| Tab | Wat | Toetsen |
+|---|---|---|
+| **1 Zoeken** | Resultaten terwijl je typt, met de gekozen notitie opgemaakt ernaast. `#tag` in de zoekopdracht filtert op tag | `↑`/`↓` kiezen, `enter` of `esc` naar de resultaten, daar `j`/`k`, `pgup`/`pgdn` om de notitie te scrollen, `/` terug naar het zoekveld |
+| **2 Vandaag** | De dagnotitie (wordt aangemaakt als hij ontbreekt) | `←`/`→` vorige/volgende dag, `t` vandaag |
+| **3 Agenda** | De weekagenda per dag, geopend bij vandaag | `←`/`→` vorige/volgende week, `t` deze week |
+| **4 Herinneringen** | De open reminders, te laat in het rood | `a` toevoegen (daarna een uiterste datum, leeg is geen), `x` afvinken, `p` inplannen in de agenda (leeg is vandaag), `.` ook de afgeronde |
+
+Met `e` open je wat je ziet in `$VISUAL` of `$EDITOR` (zonder die variabelen Notepad op Windows en `vi` op Linux), net als `noot open`. Na het sluiten van de editor komt de UI terug en wordt de index bijgewerkt. Een dag schrijf je zoals op de commandoregel: `2026-11-06`, `vandaag`, `morgen`, `+3` of `vrijdag`. Met `NO_COLOR` gezet verschijnt alles zonder kleur.
+
+`noot tui` heeft een echte terminal nodig. In een pipe of script stopt het met een foutmelding; gebruik daar de gewone commando's, die hun platte uitvoer en `--json` houden.
 
 ## Web-UI
 
@@ -231,10 +252,12 @@ internal/app/             Use cases: Sync, Watch, Resolve, notities, dagnotitie 
 internal/storage/sqlite/  Store-implementatie (SQLite + FTS5)
 internal/cli/             cobra-commando's en output
 internal/httpapi/         HTTP-adapter voor noot serve: JSON-API over de use cases + statische bestanden
+internal/tui/             Terminal-adapter voor noot tui (Bubble Tea): één package per tab, gedeelde stijl in tui/kit
+internal/editor/          $VISUAL/$EDITOR-commando, gedeeld door noot open en noot tui
 web/                      React-frontend; web/dist wordt via go:embed in de binary gezet
 ```
 
-Afhankelijkheden lopen naar binnen: `cli`/`httpapi → app → domain`, en `storage` implementeert `app.Store`. Wil je een andere zoekmotor (bleve, Meilisearch) of semantisch zoeken met embeddings, dan schrijf je een nieuwe Store. De rest blijft hetzelfde.
+Afhankelijkheden lopen naar binnen: `cli`/`httpapi`/`tui → app → domain`, en `storage` implementeert `app.Store`. Wil je een andere zoekmotor (bleve, Meilisearch) of semantisch zoeken met embeddings, dan schrijf je een nieuwe Store. De rest blijft hetzelfde.
 
 ## Ideeën voor later
 
