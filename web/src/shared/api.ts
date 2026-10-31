@@ -55,11 +55,64 @@ export function getNote(ref: string, signal?: AbortSignal): Promise<Note> {
 }
 
 export function createNote(draft: NoteDraft): Promise<NoteRef> {
-  return request("/api/notes", {
-    method: "POST",
+  return sendJSON("POST", "/api/notes", draft);
+}
+
+/** The journal note of one day. */
+export interface JournalDay extends Note {
+  date: string; // YYYY-MM-DD
+  /** Identifies the loaded content; saveJournal sends it back. */
+  version: string;
+}
+
+/** A line of reminders.md; n is its number, as the CLI shows it. */
+export interface Reminder {
+  n: number;
+  text: string;
+  done: boolean;
+  due?: string;
+  planned?: string;
+  done_on?: string;
+}
+
+export interface Planned {
+  reminder: Reminder;
+  /** The agenda note the reminder was planned in. */
+  agenda: string;
+}
+
+function sendJSON<T>(method: string, url: string, body: unknown): Promise<T> {
+  return request(url, {
+    method,
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(draft),
+    body: JSON.stringify(body),
   });
+}
+
+/** day is YYYY-MM-DD or a word the CLI knows: today, vandaag, morgen, vrijdag, +2 … */
+export function getJournal(day: string, signal?: AbortSignal): Promise<JournalDay> {
+  return request(`/api/journal/${encodeURIComponent(day)}`, { signal });
+}
+
+/** Fails with status 409 when the note changed after it was loaded at version. */
+export function saveJournal(day: string, content: string, version: string): Promise<JournalDay> {
+  return sendJSON("PUT", `/api/journal/${encodeURIComponent(day)}`, { content, version });
+}
+
+export function listReminders(all: boolean, signal?: AbortSignal): Promise<Reminder[]> {
+  return request(`/api/reminders?all=${all}`, { signal });
+}
+
+export function addReminder(text: string, due?: string): Promise<Reminder> {
+  return sendJSON("POST", "/api/reminders", due ? { text, due } : { text });
+}
+
+export function completeReminder(n: number): Promise<Reminder> {
+  return sendJSON("POST", `/api/reminders/${n}/done`, {});
+}
+
+export function planReminder(n: number, day: string): Promise<Planned> {
+  return sendJSON("POST", `/api/reminders/${n}/plan`, { day });
 }
 
 /** The frontend route that shows a note; ref is an id, path, title or alias. */

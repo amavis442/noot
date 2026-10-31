@@ -24,4 +24,20 @@ describe("App", () => {
     go("#/note/a.md");
     expect(await screen.findByRole("heading", { name: "Alpha" })).toBeInTheDocument();
   });
+
+  it("links to today's journal and the reminders", async () => {
+    stubFetch(
+      { body: { date: "2026-10-31", version: "v", id: "J", path: "journal/2026-10-31.md", title: "", content: "", html: "<h1>Dag</h1>" } },
+      { body: [] },
+    );
+    render(<App />);
+    expect(screen.getByRole("link", { name: /vandaag/i })).toHaveAttribute("href", "#/journal");
+    expect(screen.getByRole("link", { name: /reminders/i })).toHaveAttribute("href", "#/reminders");
+
+    go("#/journal");
+    expect(await screen.findByRole("heading", { name: "Dag" })).toBeInTheDocument();
+
+    go("#/reminders");
+    expect(await screen.findByText(/geen open reminders/i)).toBeInTheDocument();
+  });
 });

@@ -10,6 +10,12 @@ describe("parseRoute", () => {
     expect(parseRoute("#/whatever")).toEqual({ name: "home" });
   });
 
+  it("knows the journal and reminders routes", () => {
+    expect(parseRoute("#/journal")).toEqual({ name: "journal", day: "today" });
+    expect(parseRoute("#/journal/2026-10-31")).toEqual({ name: "journal", day: "2026-10-31" });
+    expect(parseRoute("#/reminders")).toEqual({ name: "reminders" });
+  });
+
   it("treats a malformed escape as home", () => {
     expect(parseRoute("#/note/%E0%A4%A")).toEqual({ name: "home" });
   });

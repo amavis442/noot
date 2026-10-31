@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { ApiError, createNote, getNote, noteHref, searchNotes } from "./api";
+import {
+  addReminder,
+  ApiError,
+  completeReminder,
+  createNote,
+  getJournal,
+  getNote,
+  listReminders,
+  noteHref,
+  planReminder,
+  saveJournal,
+  searchNotes,
+} from "./api";
 import { stubFetch } from "./testing";
 
 describe("api", () => {
@@ -40,5 +52,41 @@ describe("api", () => {
 
   it("links to a note through the hash route", () => {
     expect(noteHref("zettels/a b.md")).toBe("#/note/zettels%2Fa%20b.md");
+  });
+
+  it("loads and saves a journal day", async () => {
+    const fetchMock = stubFetch(
+      { body: { date: "2026-10-31", version: "v1", id: "J", path: "journal/2026-10-31.md", title: "", content: "x", html: "" } },
+      { body: { date: "2026-10-31", version: "v2", id: "J", path: "journal/2026-10-31.md", title: "", content: "y", html: "" } },
+    );
+    expect((await getJournal("today")).version).toBe("v1");
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/journal/today");
+
+    expect((await saveJournal("2026-10-31", "y", "v1")).version).toBe("v2");
+    const [url, init] = fetchMock.mock.calls[1];
+    expect(url).toBe("/api/journal/2026-10-31");
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(init.body)).toEqual({ content: "y", version: "v1" });
+  });
+
+  it("lists, adds, completes and plans reminders", async () => {
+    const fetchMock = stubFetch(
+      { body: [] },
+      { status: 201, body: { n: 1, text: "Melk", done: false } },
+      { body: { n: 1, text: "Melk", done: true } },
+      { body: { reminder: { n: 2, text: "X", done: false, planned: "2026-11-02" }, agenda: "agenda/2026-W45.md" } },
+    );
+    await listReminders(true);
+    await addReminder("Melk", "morgen");
+    await completeReminder(1);
+    const planned = await planReminder(2, "maandag");
+
+    expect(fetchMock.mock.calls.map((c) => [c[0], c[1]?.method ?? "GET", c[1]?.body])).toEqual([
+      ["/api/reminders?all=true", "GET", undefined],
+      ["/api/reminders", "POST", JSON.stringify({ text: "Melk", due: "morgen" })],
+      ["/api/reminders/1/done", "POST", "{}"],
+      ["/api/reminders/2/plan", "POST", JSON.stringify({ day: "maandag" })],
+    ]);
+    expect(planned.agenda).toBe("agenda/2026-W45.md");
   });
 });

@@ -1,5 +1,7 @@
+import { JournalView } from "./features/journal/JournalView";
 import { NewNoteForm } from "./features/notes/NewNoteForm";
 import { NoteView } from "./features/notes/NoteView";
+import { RemindersPage } from "./features/reminders/RemindersPage";
 import { SearchPanel } from "./features/search/SearchPanel";
 import { useHashRoute } from "./shared/useHashRoute";
 
@@ -12,9 +14,13 @@ export function App() {
         <a href="#/" className="brand">
           noot
         </a>
-        <a href="#/new" className="button">
-          Nieuwe notitie
-        </a>
+        <nav className="main-nav">
+          <a href="#/journal">Vandaag</a>
+          <a href="#/reminders">Reminders</a>
+          <a href="#/new" className="button">
+            Nieuwe notitie
+          </a>
+        </nav>
       </header>
       <aside>
         <SearchPanel />
@@ -22,6 +28,8 @@ export function App() {
       <main>
         {route.name === "note" && <NoteView key={route.ref} noteRef={route.ref} />}
         {route.name === "new" && <NewNoteForm />}
+        {route.name === "journal" && <JournalView key={route.day} day={route.day} />}
+        {route.name === "reminders" && <RemindersPage />}
         {route.name === "home" && <p className="muted">Zoek een notitie of maak een nieuwe.</p>}
       </main>
     </div>

@@ -1,13 +1,28 @@
 import { useEffect, useState } from "react";
 
-export type Route = { name: "home" } | { name: "new" } | { name: "note"; ref: string };
+export type Route =
+  | { name: "home" }
+  | { name: "new" }
+  | { name: "note"; ref: string }
+  | { name: "journal"; day: string }
+  | { name: "reminders" };
 
 const notePrefix = "#/note/";
+const journalPrefix = "#/journal/";
 
 /** Reads a route from location.hash; anything unknown is home. */
 export function parseRoute(hash: string): Route {
   if (hash === "#/new") {
     return { name: "new" };
+  }
+  if (hash === "#/reminders") {
+    return { name: "reminders" };
+  }
+  if (hash === "#/journal") {
+    return { name: "journal", day: "today" };
+  }
+  if (hash.startsWith(journalPrefix)) {
+    return { name: "journal", day: hash.slice(journalPrefix.length) };
   }
   if (hash.startsWith(notePrefix)) {
     try {
