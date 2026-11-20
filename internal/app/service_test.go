@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/amavis442/noot/internal/app"
@@ -116,5 +117,81 @@ func TestDuplicateIDIsReported(t *testing.T) {
 	}
 	if st.Total != 1 || len(st.Errors) != 1 {
 		t.Errorf("stats = %+v", st)
+	}
+}
+
+func TestFileLinks(t *testing.T) {
+	ctx := context.Background()
+	svc, root := setup(t)
+
+	write(t, root, "notes/a.md", "# A\n\nSee [[photo.png]], ![[assets/doc.pdf|the doc]], [pic](../img/x.png), [[gone.png]], [[v1.2]] and [[b]].\n")
+	write(t, root, "notes/b.md", "# B\n\n[[PHOTO.png]] and [[doc.pdf]].\n")
+	write(t, root, "v1.2.md", "# v1.2\n\na note whose name looks like a file\n")
+	write(t, root, "photo.png", "png")
+	write(t, root, "assets/doc.pdf", "pdf")
+	write(t, root, "img/x.png", "png")
+	write(t, root, "v1.2", "a file that loses against the note")
+
+	st, err := svc.Sync(ctx, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Total != 3 || len(st.Errors) != 0 {
+		t.Fatalf("stats = %+v", st)
+	}
+
+	out, _ := svc.Store.OutLinks(ctx, "notes/a")
+	var got []string
+	for _, o := range out {
+		switch {
+		case o.Resolved != nil:
+			got = append(got, o.Target+" → note "+o.Resolved.Path)
+		case o.ResolvedFile != nil:
+			got = append(got, o.Target+" → file "+o.ResolvedFile.Path)
+		default:
+			got = append(got, o.Target+" → broken")
+		}
+	}
+	want := []string{
+		"img/x.png → file img/x.png", "photo.png → file photo.png", "assets/doc.pdf → file assets/doc.pdf",
+		"gone.png → broken", "v1.2 → note v1.2.md", "b → note notes/b.md",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("outlinks:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+
+	broken, _ := svc.Store.Broken(ctx)
+	if len(broken) != 1 || broken[0].Target != "gone.png" {
+		t.Errorf("broken = %+v", broken)
+	}
+	bls, _ := svc.Store.FileBacklinks(ctx, "photo.png")
+	if len(bls) != 2 || bls[0].From.Path != "notes/a.md" || bls[1].From.Path != "notes/b.md" {
+		t.Errorf("file backlinks = %+v", bls)
+	}
+	if f, _ := svc.Store.ResolveFile(ctx, "doc.pdf"); f == nil || f.Path != "assets/doc.pdf" {
+		t.Errorf("resolve by file name = %+v", f)
+	}
+	if f, _ := svc.Store.ResolveFile(ctx, "Img/X.PNG"); f == nil || f.Path != "img/x.png" {
+		t.Errorf("resolve by path = %+v", f)
+	}
+	if f, _ := svc.Store.ResolveFile(ctx, "nope.png"); f != nil {
+		t.Errorf("resolve missing = %+v", f)
+	}
+
+	// Removing a file breaks its links; adding it back repairs them, without
+	// any note changing.
+	_ = os.Remove(filepath.Join(root, "photo.png"))
+	if _, err := svc.Sync(ctx, false); err != nil {
+		t.Fatal(err)
+	}
+	if broken, _ = svc.Store.Broken(ctx); len(broken) != 3 {
+		t.Errorf("after removal: %+v", broken)
+	}
+	write(t, root, "photo.png", "png again")
+	if _, err := svc.Sync(ctx, false); err != nil {
+		t.Fatal(err)
+	}
+	if broken, _ = svc.Store.Broken(ctx); len(broken) != 1 {
+		t.Errorf("after restore: %+v", broken)
 	}
 }

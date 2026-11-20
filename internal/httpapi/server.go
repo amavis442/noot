@@ -16,7 +16,6 @@ import (
 
 	"github.com/amavis442/noot/internal/app"
 	"github.com/amavis442/noot/internal/domain"
-	"github.com/amavis442/noot/internal/parser"
 )
 
 // Notes is what the note endpoints need from the app layer.
@@ -33,6 +32,7 @@ type Ports struct {
 	Journal   Journal
 	Agenda    Agenda
 	Reminders Reminders
+	Files     Files // optional: without it notes link to notes only and /api/files is not served
 }
 
 // noteLinkPrefix is where links inside a rendered note point to: the
@@ -52,15 +52,19 @@ and rebuild noot. The JSON API under <code>/api/</code> works regardless.</p>
 
 // New returns the handler for the API and the frontend files in assets.
 func New(p Ports, assets fs.FS) http.Handler {
-	h := &handler{notes: p.Notes}
-	days := &dayHandler{journal: p.Journal, agenda: p.Agenda}
+	rd := renderer{files: p.Files}
+	h := &handler{notes: p.Notes, render: rd}
+	days := &dayHandler{journal: p.Journal, agenda: p.Agenda, render: rd}
 	rh := &reminderHandler{reminders: p.Reminders}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/search", h.search)
 	mux.HandleFunc("GET /api/notes/{ref...}", h.readNote)
 	mux.HandleFunc("PUT /api/notes/{ref...}", h.saveNote)
 	mux.HandleFunc("POST /api/notes", h.createNote)
-	mux.HandleFunc("POST /api/preview", preview)
+	mux.HandleFunc("POST /api/preview", (&previewHandler{render: rd}).preview)
+	if p.Files != nil {
+		mux.HandleFunc("GET /api/files/{path...}", (&fileHandler{files: p.Files}).serve)
+	}
 	mux.HandleFunc("GET /api/journal/{day}", days.getJournal)
 	mux.HandleFunc("GET /api/agenda/{day}", days.getAgenda)
 	mux.HandleFunc("PUT /api/agenda/{day}/day", days.putAgendaDay)
@@ -75,7 +79,10 @@ func New(p Ports, assets fs.FS) http.Handler {
 	return mux
 }
 
-type handler struct{ notes Notes }
+type handler struct {
+	notes  Notes
+	render renderer
+}
 
 func (h *handler) search(w http.ResponseWriter, r *http.Request) {
 	q := domain.SearchQuery{Text: r.URL.Query().Get("q"), Tags: r.URL.Query()["tag"]}
@@ -110,7 +117,7 @@ func (h *handler) readNote(w http.ResponseWriter, r *http.Request) {
 		writeAppError(w, err)
 		return
 	}
-	n, err := render(*doc)
+	n, err := h.render.note(r.Context(), *doc)
 	if err != nil {
 		writeAppError(w, err)
 		return
@@ -118,9 +125,9 @@ func (h *handler) readNote(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, n)
 }
 
-// render adds the HTML of a note's body.
-func render(doc domain.Document) (note, error) {
-	html, err := parser.RenderHTML(doc.Path, []byte(doc.Content), noteLinkPrefix)
+// note adds the HTML of a note's body.
+func (rd renderer) note(ctx context.Context, doc domain.Document) (note, error) {
+	html, err := rd.html(ctx, doc.Path, []byte(doc.Content))
 	return note{Document: doc, HTML: html}, err
 }
 
@@ -166,7 +173,7 @@ func (h *handler) saveNote(w http.ResponseWriter, r *http.Request) {
 		writeAppError(w, err)
 		return
 	}
-	n, err := render(*doc)
+	n, err := h.render.note(r.Context(), *doc)
 	if err != nil {
 		writeAppError(w, err)
 		return

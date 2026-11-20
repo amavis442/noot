@@ -94,12 +94,12 @@ Elk leescommando werkt de index eerst incrementeel bij (op basis van mtime en gr
 | `log [-p project] [-t tag] <tekst>` | Regel met tijdstempel toevoegen aan `logs/JJJJ-MM-DD.md` (ook via stdin) |
 | `cat <note>` | Notitie printen |
 | `context <note> [--days 7] [-n 20]` | Notitie printen met de notities die ernaar linken of ernaast staan (bij `projects/x/x.md`), en de logregels van de laatste dagen die ernaar linken. Eén commando om een project op te pakken |
-| `rename <note> [nieuw-pad] [--title t] [--dry-run]` | Notitie verplaatsen en/of de titel wijzigen; alle links ernaar worden bijgewerkt in de vorm waarin ze geschreven zijn (pad, bestandsnaam of titel). Links via id of alias blijven gewoon werken, links in code blijven staan |
+| `rename <note\|bestand> [nieuw-pad] [--title t] [--dry-run]` | Notitie of bijlage (afbeelding, pdf) verplaatsen en/of de titel van een notitie wijzigen; alle links ernaar worden bijgewerkt in de vorm waarin ze geschreven zijn (pad, bestandsnaam of titel). Links via id of alias blijven gewoon werken, links in code blijven staan |
 | `append [--create] <note> <tekst>` | Tekst achter een notitie plakken (ook via stdin) |
 | `index [--full]` | Index bijwerken; `--full` bouwt alles opnieuw op |
 | `search <termen> [-t tag] [-n 20] [--raw] [--all]` | Full-text zoeken; met `--all` in alle vaults tegelijk. Met `--raw` gebruik je FTS5-syntax (`NEAR`, `OR`, `"exacte zin"`) |
-| `backlinks <note>` (`bl`) | Wie linkt hiernaar, met de alinea als context |
-| `links <note>` | Uitgaande links, gebroken links gemarkeerd met ✗ |
+| `backlinks <note\|bestand>` (`bl`) | Wie linkt hiernaar, met de alinea als context. Ook voor een bijlage: `noot bl foto.png` |
+| `links <note>` | Uitgaande links (naar notities en bijlagen), gebroken links gemarkeerd met ✗ |
 | `broken` | Alle links die nergens heen gaan |
 | `orphans` | Notities zonder in- of uitgaande links |
 | `tags [tag]` | Tag-overzicht met aantallen, of de notities met een tag (`go` matcht ook `go/generics`) |
@@ -125,7 +125,7 @@ Overal kun je `--json` toevoegen voor scripts, fzf of een AI-agent. Bijvoorbeeld
 noot search --json repository | jq -r '.[].path' | fzf --preview 'bat --color=always {}'
 ```
 
-`<note>` wordt in deze volgorde opgezocht: **id → pad → bestandsnaam → titel → alias**, zonder onderscheid tussen hoofd- en kleine letters. Diezelfde volgorde wordt gebruikt om `[[wikilinks]]` op te lossen.
+`<note>` wordt in deze volgorde opgezocht: **id → pad → bestandsnaam → titel → alias**, zonder onderscheid tussen hoofd- en kleine letters. Diezelfde volgorde wordt gebruikt om `[[wikilinks]]` op te lossen. Vindt een wikilink geen notitie, dan zoekt noot een bijlage met die naam (zie [Conventies](#conventies)).
 
 ## Terminal-UI
 
@@ -186,7 +186,8 @@ De API, voor scripts:
 | Endpoint | Wat |
 |---|---|
 | `GET /api/search?q=…&tag=…&limit=…` | Zoekresultaten, net als `noot search --json` |
-| `GET /api/notes/{ref}` | Notitie via id, pad, bestandsnaam, titel of alias: `content` (het bestand), `html` (gerenderd) en `version` |
+| `GET /api/notes/{ref}` | Notitie via id, pad, bestandsnaam, titel of alias: `content` (het bestand), `html` (gerenderd) en `version`. Een link naar een bijlage wijst naar `/api/files/…` |
+| `GET /api/files/{pad}` | Een bijlage uit de vault, op het vault-pad (`assets/foto.png`). Afbeeldingen (png, jpg, gif, webp, avif, bmp, ico) komen inline; alles anders, ook svg en html, als download (`attachment`, `nosniff`, `sandbox`). Alleen bestanden die noot indexeert: geen notities, verborgen bestanden of symlinks |
 | `PUT /api/notes/{ref}` | Notitie opslaan; body `{"content": "…", "version": "…"}`. Geeft `409` als het bestand na het laden is gewijzigd |
 | `POST /api/notes` | Nieuwe notitie; body `{"title": "…", "body": "…", "tags": ["…"]}` |
 | `POST /api/preview` | Niet-opgeslagen tekst renderen zoals de notitie eruit komt te zien; body `{"path": "…", "content": "…"}`, antwoord `{"html": "…"}`. Leest en schrijft geen bestanden |
@@ -253,7 +254,12 @@ of een gewone link: [tekst](../projects/benstartpagina.md). #refactoring #go/pat
 ```
 
 - Links en tags in codeblokken en `inline code` worden genegeerd.
-- Mappen die met `.` beginnen (`.git`, `.obsidian`, `.noot`) en `node_modules` worden overgeslagen.
+- **Bijlagen**: een link kan ook naar een ander bestand dan een notitie wijzen: `[[foto.png]]`, `[[scans/contract.pdf|het contract]]`, `![[schema.png]]`, `[pdf](bijlagen/a.pdf)` of `![](plaatje.png)`. Elk niet-verborgen bestand telt mee, ongeacht het type. Zo worden ze opgelost:
+  - Een notitie wint van een bijlage: heet een notitie `v1.2` en bestaat er ook een bestand `v1.2`, dan is `[[v1.2]]` de notitie.
+  - Een wikilink naar een bijlage werkt op pad (`assets/foto.png`) of op bestandsnaam (`foto.png`); bij dezelfde naam in meerdere mappen wint het kortste pad. Een Markdown-link is altijd een pad.
+  - Bijlagen staan niet in de zoekindex en hebben geen titel of tags; ze zijn alleen een doel voor links. `broken`, `links` en `backlinks` kennen ze, en `rename` verplaatst ze en past de links aan. Een rename die links op bestandsnaam zou overnemen van een ander bestand met een korter pad wordt geweigerd.
+  - In de web-UI wordt `![[foto.png]]` een afbeelding en elke andere link een download. Een svg is nooit een `<img>`, omdat die scripts kan bevatten.
+- Mappen en bestanden die met `.` beginnen (`.git`, `.obsidian`, `.noot`) en `node_modules` worden overgeslagen; symlinks naar bestanden tellen niet als bijlage.
 - Twee bestanden met dezelfde `id` krijg je als waarschuwing te zien; het tweede bestand wordt dan overgeslagen.
 - `noot new` geeft elke notitie een ULID: 26 tekens, uniek zonder in de rest van de vault te kijken, en
   toch op aanmaaktijd gesorteerd. Een eigen id mag ook; elke tekst is goed, ook de tijdstempels
@@ -264,7 +270,7 @@ of een gewone link: [tekst](../projects/benstartpagina.md). #refactoring #go/pat
 
 ```
 cmd/noot/                 main
-internal/domain/          Note, Link, NoteRef … (geen dependencies)
+internal/domain/          Note, Link, NoteRef, FileRef … (geen dependencies)
 internal/parser/          Markdown → domain.Note (goldmark AST + frontmatter)
 internal/vault/           Bestandslayout: root vinden, scannen, notities/journal aanmaken
 internal/app/             Use cases: Sync, Watch, Resolve, notities, dagnotitie en reminders; definieert de Store-port

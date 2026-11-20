@@ -2,8 +2,6 @@ package httpapi
 
 import (
 	"net/http"
-
-	"github.com/amavis442/noot/internal/parser"
 )
 
 // previewRequest is the content to render. Path is where the note lives, so
@@ -15,13 +13,15 @@ type previewRequest struct {
 }
 
 // preview renders unsaved content the way a saved note is rendered. It reads
-// and writes nothing, so it needs no port.
-func preview(w http.ResponseWriter, r *http.Request) {
+// and writes nothing; it only looks up which links name a file.
+type previewHandler struct{ render renderer }
+
+func (h *previewHandler) preview(w http.ResponseWriter, r *http.Request) {
 	var in previewRequest
 	if !decodeJSON(w, r, &in) {
 		return
 	}
-	html, err := parser.RenderHTML(in.Path, []byte(in.Content), noteLinkPrefix)
+	html, err := h.render.html(r.Context(), in.Path, []byte(in.Content))
 	if err != nil {
 		// A broken frontmatter block while typing is expected, not a server fault.
 		writeError(w, http.StatusBadRequest, err)
