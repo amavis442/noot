@@ -1074,3 +1074,42 @@ func TestPipedOutputHasNoColours(t *testing.T) {
 	contains(t, "plain search", e.ok("-V", "v", "search", "rogge"), "zettels/brood.md  —  Brood", "«rogge»")
 	contains(t, "plain reminder", e.ok("-V", "v", "reminder"), "[ ] Tandarts bellen  due 2020-01-01 (overdue)")
 }
+
+func TestFileLinksCLI(t *testing.T) {
+	e := newEnv(t)
+	e.ok("init", e.path("v"), "--name", "v")
+	e.write("v/notes/a.md", "# A\n\nPhoto [[photo.png]], embed ![[assets/scan.pdf|scan]], [pic](../img/x.png), [again](../photo.png) and [[gone.png]].\n")
+	e.write("v/notes/b.md", "# B\n\nAgain [[photo.png]].\n")
+	e.write("v/photo.png", "png")
+	e.write("v/assets/scan.pdf", "pdf")
+	e.write("v/img/x.png", "png")
+
+	contains(t, "links", e.ok("links", "a"),
+		"✓ photo.png", "→ photo.png", "✓ assets/scan.pdf", "✓ img/x.png", "✗ gone.png")
+	bl := e.ok("backlinks", "photo.png")
+	contains(t, "file backlinks", bl, "2 backlinks to photo.png", "notes/a.md", "notes/b.md", "[[photo.png]]")
+	contains(t, "backlinks by file name", e.ok("backlinks", "scan.pdf"), "1 backlinks to assets/scan.pdf")
+	broken := e.ok("broken")
+	contains(t, "broken", broken, "gone.png")
+	lacks(t, "broken", broken, "photo.png", "scan.pdf", "x.png")
+	if r := e.run("backlinks", "nope.png"); r.code == 0 {
+		t.Errorf("backlinks of an unknown file should fail:\n%s", r)
+	}
+
+	contains(t, "dry run", e.ok("rename", "photo.png", "img/photo.png", "--dry-run"),
+		"would rename photo.png → img/photo.png, 1 links in 1 files")
+	if _, err := os.Stat(e.path("v/photo.png")); err != nil {
+		t.Errorf("dry run moved the file: %v", err)
+	}
+	contains(t, "rename", e.ok("rename", "photo.png", "img/photo.png"), "renamed photo.png → img/photo.png")
+	// The link by file name still resolves; the Markdown link names the path.
+	contains(t, "rewritten a", e.read("v/notes/a.md"), "Photo [[photo.png]]", "[again](../img/photo.png)")
+	contains(t, "moved", e.read("v/img/photo.png"), "png")
+	contains(t, "backlinks after rename", e.ok("backlinks", "img/photo.png"), "2 backlinks to img/photo.png")
+	if out := e.ok("broken"); strings.Contains(out, "photo.png") {
+		t.Errorf("rename broke links:\n%s", out)
+	}
+	if r := e.run("rename", "img/photo.png", "x.md"); r.code == 0 {
+		t.Errorf("renaming a file into a note should fail:\n%s", r)
+	}
+}

@@ -195,24 +195,20 @@ func printHits(e *env, vaultName string, hits []domain.SearchHit) {
 
 func cmdBacklinks(opts *options) *cobra.Command {
 	return &cobra.Command{
-		Use:     "backlinks <note>",
-		Short:   "Notes that link to <note> (id, path, file name, title or alias)",
+		Use:     "backlinks <note|file>",
+		Short:   "Notes that link to <note> (id, path, file name, title or alias) or to a file such as an image",
 		Aliases: []string{"bl"},
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return run(cmd, opts, true, func(e *env) error {
-				ref, err := e.svc.MustResolve(e.ctx, args[0])
-				if err != nil {
-					return err
-				}
-				bls, err := e.store.Backlinks(e.ctx, ref.ID)
+				target, bls, err := e.svc.BacklinksTo(e.ctx, args[0])
 				if err != nil {
 					return err
 				}
 				if opts.asJSON {
 					return e.json(bls)
 				}
-				fmt.Fprintf(e.out, "%d backlinks to %s\n", len(bls), ref.Path)
+				fmt.Fprintf(e.out, "%d backlinks to %s\n", len(bls), target)
 				for _, b := range bls {
 					fmt.Fprintf(e.out, "  %s  —  %s\n", b.From.Path, b.From.Title)
 					if b.Context != "" {
@@ -244,9 +240,12 @@ func cmdLinks(opts *options) *cobra.Command {
 					return e.json(links)
 				}
 				for _, l := range links {
-					if l.Resolved != nil {
+					switch {
+					case l.Resolved != nil:
 						fmt.Fprintf(e.out, "  ✓ %-30s → %s\n", l.Target, l.Resolved.Path)
-					} else {
+					case l.ResolvedFile != nil:
+						fmt.Fprintf(e.out, "  ✓ %-30s → %s\n", l.Target, l.ResolvedFile.Path)
+					default:
 						fmt.Fprintf(e.out, "  ✗ %s\n", l.Target)
 					}
 				}
@@ -326,15 +325,20 @@ func printContext(e *env, nc *domain.NoteContext, days int) {
 func cmdRename(opts *options) *cobra.Command {
 	var ro app.RenameOptions
 	c := &cobra.Command{
-		Use:   "rename <note> [new-path]",
-		Short: "Move a note and/or change its title, rewriting every link to it",
+		Use:   "rename <note|file> [new-path]",
+		Short: "Move a note or file and/or change a note's title, rewriting every link to it",
 		Long: `Moves a note to new-path (vault-relative, ".md" optional; a bare name stays
 in the same folder) and/or changes its title with --title. Every [[wikilink]]
 and Markdown link that pointed to the note is rewritten in the form it was
 written in (path, file name or title); links by id or alias keep working and
 are left alone. The note's own relative Markdown links follow it to its new
-folder. Links inside code are not touched.`,
+folder. Links inside code are not touched.
+
+A file that is not a note (an image, a PDF) moves the same way: the links to
+it are rewritten as the path or the file name, whichever they used. Keep its
+extension; a file has no title.`,
 		Example: `  noot -A rename noot projects/noot/noot
+  noot rename photo.png assets/photo.png
   noot rename "Clean architecture" --title "Clean architecture in Go"
   noot rename old-name new-name --dry-run`,
 		Args: cobra.RangeArgs(1, 2),
@@ -373,7 +377,7 @@ folder. Links inside code are not touched.`,
 func cmdBroken(opts *options) *cobra.Command {
 	return &cobra.Command{
 		Use:   "broken",
-		Short: "All links that point to a non-existing note",
+		Short: "All links that point to a non-existing note or file",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return run(cmd, opts, true, func(e *env) error {
 				bs, err := e.store.Broken(e.ctx)
