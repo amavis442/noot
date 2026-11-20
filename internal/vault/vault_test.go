@@ -3,6 +3,7 @@ package vault
 import (
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -144,5 +145,58 @@ func TestNewNoteWritesBodyBelowTheHeading(t *testing.T) {
 	}
 	if !strings.HasSuffix(string(b), "---\n\n# Zonder tekst\n\n") {
 		t.Errorf("blank body should leave only the heading:\n%s", b)
+	}
+}
+
+func TestWalkFilesFindsAttachmentsOnly(t *testing.T) {
+	root := t.TempDir()
+	v := &Vault{Root: root}
+	if err := v.Init(config.KindPersonal); err != nil {
+		t.Fatal(err)
+	}
+	nested := &Vault{Root: filepath.Join(root, "Other")}
+	if err := nested.Init(config.KindPersonal); err != nil {
+		t.Fatal(err)
+	}
+	for rel, body := range map[string]string{
+		"note.md":                     "# note",
+		"photo.png":                   "png",
+		"assets/doc.pdf":              "pdf",
+		"assets/Notes.MD":             "also a note",
+		".hidden.txt":                 "hidden file",
+		".git/config":                 "git",
+		"node_modules/pkg/x.js":       "js",
+		"Other/pic.png":               "other vault",
+		"deep/er/archive.tar.gz":      "gz",
+		"assets/no-extension-LICENSE": "license",
+	} {
+		p := v.Abs(rel)
+		_ = os.MkdirAll(filepath.Dir(p), 0o755)
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A symlink may point outside the vault, so it is not a file of the vault.
+	outside := filepath.Join(t.TempDir(), "secret.txt")
+	_ = os.WriteFile(outside, []byte("secret"), 0o644)
+	if err := os.Symlink(outside, v.Abs("link.txt")); err != nil {
+		t.Skipf("no symlinks: %v", err)
+	}
+
+	files, err := v.WalkFiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for p := range files {
+		got = append(got, p)
+	}
+	sort.Strings(got)
+	want := []string{"assets/doc.pdf", "assets/no-extension-LICENSE", "deep/er/archive.tar.gz", "photo.png"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("files = %v, want %v", got, want)
+	}
+	if files["photo.png"].Size != 3 {
+		t.Errorf("size = %d", files["photo.png"].Size)
 	}
 }

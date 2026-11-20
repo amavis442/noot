@@ -61,14 +61,22 @@ type Backlink struct {
 	Context string  `json:"context"`
 }
 
-// OutLink is an outgoing link, with the note it resolves to (nil when broken).
-type OutLink struct {
-	Target   string   `json:"target"`
-	Kind     LinkKind `json:"kind"`
-	Resolved *NoteRef `json:"resolved,omitempty"`
+// FileRef is a file of the vault that is not a note (an image, a PDF, ...).
+// Notes can link to it, but it has no title, tags or text of its own.
+type FileRef struct {
+	Path string `json:"path"` // vault-relative path with forward slashes
 }
 
-// BrokenLink is a link whose target does not resolve to any note.
+// OutLink is an outgoing link, with the note or file it resolves to (both nil
+// when broken).
+type OutLink struct {
+	Target       string   `json:"target"`
+	Kind         LinkKind `json:"kind"`
+	Resolved     *NoteRef `json:"resolved,omitempty"`
+	ResolvedFile *FileRef `json:"resolved_file,omitempty"`
+}
+
+// BrokenLink is a link whose target does not resolve to any note or file.
 type BrokenLink struct {
 	From   NoteRef  `json:"from"`
 	Target string   `json:"target"`

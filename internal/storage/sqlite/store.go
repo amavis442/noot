@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"maps"
 	"path"
 	"strings"
 
@@ -15,7 +16,7 @@ import (
 	_ "github.com/ncruces/go-sqlite3/embed"
 )
 
-const schemaVersion = 2 // 2: link context keeps inline code
+const schemaVersion = 3 // 3: files table and links.dst_file; 2: link context keeps inline code
 
 const schema = `
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
@@ -44,10 +45,21 @@ CREATE TABLE IF NOT EXISTS links (
 	target_norm TEXT NOT NULL,
 	kind        TEXT NOT NULL,
 	context     TEXT,
-	dst_id      TEXT
+	dst_id      TEXT,
+	dst_file    TEXT
 );
 CREATE INDEX IF NOT EXISTS links_src ON links(src_id);
 CREATE INDEX IF NOT EXISTS links_dst ON links(dst_id);
+CREATE INDEX IF NOT EXISTS links_dst_file ON links(dst_file);
+CREATE TABLE IF NOT EXISTS files (
+	path      TEXT PRIMARY KEY,
+	path_norm TEXT NOT NULL,
+	name_norm TEXT NOT NULL,
+	mtime     INTEGER NOT NULL,
+	size      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS files_path_norm ON files(path_norm);
+CREATE INDEX IF NOT EXISTS files_name_norm ON files(name_norm);
 CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
 	id UNINDEXED, title, body, tags,
 	tokenize = 'unicode61 remove_diacritics 2'
@@ -91,7 +103,7 @@ func (s *Store) migrate() error {
 		return nil
 	}
 	// Unknown or older schema: the index is derived data, so just rebuild it.
-	for _, t := range []string{"notes", "aliases", "tags", "links", "notes_fts", "meta"} {
+	for _, t := range []string{"notes", "aliases", "tags", "links", "files", "notes_fts", "meta"} {
 		if _, err := s.db.Exec("DROP TABLE IF EXISTS " + t); err != nil {
 			return err
 		}
@@ -108,7 +120,7 @@ func (s *Store) Close() error { return s.db.Close() }
 
 // Reset removes everything from the index.
 func (s *Store) Reset(ctx context.Context) error {
-	for _, t := range []string{"notes", "aliases", "tags", "links", "notes_fts"} {
+	for _, t := range []string{"notes", "aliases", "tags", "links", "files", "notes_fts"} {
 		if _, err := s.db.ExecContext(ctx, "DELETE FROM "+t); err != nil {
 			return err
 		}
@@ -252,14 +264,98 @@ const resolveExpr = `COALESCE(
 	(SELECT note_id FROM aliases WHERE alias_norm = ?1 LIMIT 1)
 )`
 
-// ResolveLinks recomputes dst_id for every link. Cheap enough to run after each sync.
+// fileExpr resolves a normalised name (?1) to the path of a file that is not a
+// note: by path first, then by file name (the shortest path wins).
+const fileExpr = `COALESCE(
+	(SELECT path FROM files WHERE path_norm = ?1),
+	(SELECT path FROM files WHERE name_norm = ?1 ORDER BY length(path), path LIMIT 1)
+)`
+
+// ResolveLinks recomputes dst_id and dst_file for every link. A link resolves
+// to a note first; only when there is none does it resolve to a file. A
+// Markdown link names a path, a wikilink may also use the file name. Cheap
+// enough to run after each sync.
 func (s *Store) ResolveLinks(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, `
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `
 		UPDATE links SET dst_id = CASE kind
 			WHEN 'md' THEN (SELECT id FROM notes WHERE path_norm = links.target_norm)
 			ELSE `+strings.ReplaceAll(resolveExpr, "?1", "links.target_norm")+`
-		END`)
-	return err
+		END`); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE links SET dst_file = CASE
+			WHEN dst_id IS NOT NULL THEN NULL
+			WHEN kind = 'md' THEN (SELECT path FROM files WHERE path_norm = links.target_norm)
+			ELSE `+strings.ReplaceAll(fileExpr, "?1", "links.target_norm")+`
+		END`); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// SetFiles makes files the set of non-note files in the index. It reports
+// whether that changed anything, so the caller knows to resolve links again.
+func (s *Store) SetFiles(ctx context.Context, files map[string]domain.FileState) (bool, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT path, mtime, size FROM files`)
+	if err != nil {
+		return false, err
+	}
+	have := map[string]domain.FileState{}
+	for rows.Next() {
+		var p string
+		var st domain.FileState
+		if err := rows.Scan(&p, &st.ModTime, &st.Size); err != nil {
+			rows.Close()
+			return false, err
+		}
+		have[p] = st
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return false, err
+	}
+	if maps.Equal(have, files) {
+		return false, nil
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `DELETE FROM files`); err != nil {
+		return false, err
+	}
+	for p, st := range files {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO files(path, path_norm, name_norm, mtime, size) VALUES (?, ?, ?, ?, ?)`,
+			p, norm(p), norm(path.Base(p)), st.ModTime, st.Size); err != nil {
+			return false, err
+		}
+	}
+	return true, tx.Commit()
+}
+
+// ResolveFile finds a file that is not a note by path or file name.
+func (s *Store) ResolveFile(ctx context.Context, ref string) (*domain.FileRef, error) {
+	key := norm(strings.ReplaceAll(strings.TrimSpace(ref), `\`, "/"))
+	var p sql.NullString
+	err := s.db.QueryRowContext(ctx, `SELECT `+fileExpr, key).Scan(&p)
+	if err != nil || !p.Valid {
+		return nil, err
+	}
+	return &domain.FileRef{Path: p.String}, nil
+}
+
+// FileBacklinks returns the notes linking to the file at filePath.
+func (s *Store) FileBacklinks(ctx context.Context, filePath string) ([]domain.Backlink, error) {
+	return s.backlinks(ctx, `l.dst_file = ?`, filePath)
 }
 
 // Resolve finds a note by id, path, file name, title or alias.
@@ -341,11 +437,15 @@ func ftsQuery(s string) string {
 
 // Backlinks returns notes linking to id.
 func (s *Store) Backlinks(ctx context.Context, id string) ([]domain.Backlink, error) {
+	return s.backlinks(ctx, `l.dst_id = ? AND l.src_id <> l.dst_id`, id)
+}
+
+func (s *Store) backlinks(ctx context.Context, where string, arg any) ([]domain.Backlink, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT DISTINCT n.id, n.path, n.title, COALESCE(l.context, '')
 		FROM links l JOIN notes n ON n.id = l.src_id
-		WHERE l.dst_id = ? AND l.src_id <> l.dst_id
-		ORDER BY n.path`, id)
+		WHERE `+where+`
+		ORDER BY n.path`, arg)
 	if err != nil {
 		return nil, err
 	}
@@ -364,7 +464,7 @@ func (s *Store) Backlinks(ctx context.Context, id string) ([]domain.Backlink, er
 // OutLinks returns the outgoing links of id.
 func (s *Store) OutLinks(ctx context.Context, id string) ([]domain.OutLink, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT l.target, l.kind, n.id, n.path, n.title
+		SELECT l.target, l.kind, n.id, n.path, n.title, l.dst_file
 		FROM links l LEFT JOIN notes n ON n.id = l.dst_id
 		WHERE l.src_id = ? ORDER BY l.rowid`, id)
 	if err != nil {
@@ -375,13 +475,15 @@ func (s *Store) OutLinks(ctx context.Context, id string) ([]domain.OutLink, erro
 	for rows.Next() {
 		var o domain.OutLink
 		var kind string
-		var rid, rpath, rtitle sql.NullString
-		if err := rows.Scan(&o.Target, &kind, &rid, &rpath, &rtitle); err != nil {
+		var rid, rpath, rtitle, rfile sql.NullString
+		if err := rows.Scan(&o.Target, &kind, &rid, &rpath, &rtitle, &rfile); err != nil {
 			return nil, err
 		}
 		o.Kind = domain.LinkKind(kind)
 		if rid.Valid {
 			o.Resolved = &domain.NoteRef{ID: rid.String, Path: rpath.String, Title: rtitle.String}
+		} else if rfile.Valid {
+			o.ResolvedFile = &domain.FileRef{Path: rfile.String}
 		}
 		out = append(out, o)
 	}
@@ -393,7 +495,7 @@ func (s *Store) Broken(ctx context.Context) ([]domain.BrokenLink, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT n.id, n.path, n.title, l.target, l.kind
 		FROM links l JOIN notes n ON n.id = l.src_id
-		WHERE l.dst_id IS NULL ORDER BY n.path, l.rowid`)
+		WHERE l.dst_id IS NULL AND l.dst_file IS NULL ORDER BY n.path, l.rowid`)
 	if err != nil {
 		return nil, err
 	}
