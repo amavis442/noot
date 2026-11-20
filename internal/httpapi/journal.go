@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/amavis442/noot/internal/app"
-	"github.com/amavis442/noot/internal/parser"
 	"github.com/amavis442/noot/internal/vault"
 )
 
@@ -27,6 +26,7 @@ type Agenda interface {
 type dayHandler struct {
 	journal Journal
 	agenda  Agenda
+	render  renderer
 }
 
 // journalDay is a journal note as the API returns it.
@@ -60,7 +60,7 @@ func (h *dayHandler) getJournal(w http.ResponseWriter, r *http.Request) {
 		writeAppError(w, err)
 		return
 	}
-	n, err := render(j.Document)
+	n, err := h.render.note(r.Context(), j.Document)
 	if err != nil {
 		writeAppError(w, err)
 		return
@@ -78,18 +78,18 @@ func (h *dayHandler) getAgenda(w http.ResponseWriter, r *http.Request) {
 		writeAppError(w, err)
 		return
 	}
-	n, err := render(a.Document)
+	n, err := h.render.note(r.Context(), a.Document)
 	if err != nil {
 		writeAppError(w, err)
 		return
 	}
 	week := agendaWeek{note: n, Week: a.Week, Monday: a.Monday, Days: []agendaDay{}}
-	if week.IntroHTML, err = parser.RenderHTML(a.Path, []byte(a.Intro), noteLinkPrefix); err != nil {
+	if week.IntroHTML, err = h.render.html(r.Context(), a.Path, []byte(a.Intro)); err != nil {
 		writeAppError(w, err)
 		return
 	}
 	for _, d := range a.Days {
-		day, err := renderDay(a.Path, d)
+		day, err := h.renderDay(r.Context(), a.Path, d)
 		if err != nil {
 			writeAppError(w, err)
 			return
@@ -117,7 +117,7 @@ func (h *dayHandler) putAgendaDay(w http.ResponseWriter, r *http.Request) {
 		writeAppError(w, err)
 		return
 	}
-	d, err := renderDay(vault.AgendaPath(day), *saved)
+	d, err := h.renderDay(r.Context(), vault.AgendaPath(day), *saved)
 	if err != nil {
 		writeAppError(w, err)
 		return
@@ -126,8 +126,8 @@ func (h *dayHandler) putAgendaDay(w http.ResponseWriter, r *http.Request) {
 }
 
 // renderDay adds the HTML of a day; rel is the agenda note it is part of.
-func renderDay(rel string, d app.AgendaDay) (agendaDay, error) {
-	html, err := parser.RenderHTML(rel, []byte(d.Content), noteLinkPrefix)
+func (h *dayHandler) renderDay(ctx context.Context, rel string, d app.AgendaDay) (agendaDay, error) {
+	html, err := h.render.html(ctx, rel, []byte(d.Content))
 	return agendaDay{AgendaDay: d, HTML: html}, err
 }
 
