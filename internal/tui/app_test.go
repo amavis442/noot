@@ -166,7 +166,7 @@ func TestHelpOverlayListsAllKeys(t *testing.T) {
 	m, _ = update(t, m, tea.WindowSizeMsg{Width: 100, Height: 30})
 	m, _ = update(t, m, press("?"))
 	out := m.View()
-	for _, want := range []string{"keys of Zoeken", "1-4", "q/esc", "?"} {
+	for _, want := range []string{"keys of Zoeken", "1-5", "q/esc", "?"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("help lacks %q:\n%s", want, out)
 		}

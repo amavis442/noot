@@ -16,8 +16,8 @@ import (
 func cmdTUI(opts *options) *cobra.Command {
 	return &cobra.Command{
 		Use:   "tui",
-		Short: "Interactive terminal UI: search, journal, agenda and reminders",
-		Long: `Opens the selected vault in a full-screen terminal UI with four tabs:
+		Short: "Interactive terminal UI: search, journal, agenda, reminders and todo",
+		Long: `Opens the selected vault in a full-screen terminal UI with five tabs:
 
   1 Search      / opens the search bar; results while you type ("#tag" filters),
                 the note rendered beside them
@@ -25,12 +25,15 @@ func cmdTUI(opts *options) *cobra.Command {
   3 Agenda      the weekly agenda, day by day, opened at today; [ and ] browse weeks,
                 arrows pick a day, e edits that day only, E the whole week
   4 Reminders   add (ctrl+n), tick off (x), plan into the agenda (p), show done ones (.)
+  5 Todo        every task of reminders, backlog and week agendas by when it is due;
+                space/x ticks off, enter opens the source file, p plans a reminder,
+                a shows done ones
 
 The keys follow superfile's defaults: j/k or arrows move, enter/l/right opens
 the selected note in $VISUAL / $EDITOR (e does too, in every tab), tab/L and H
 switch panels, / searches, f toggles the preview, ? lists every key, q/esc
 quits. J/K scroll the preview, which never takes the keyboard. While typing,
-enter confirms and esc/ctrl+c cancels. 1-4 switch tabs.
+enter confirms and esc/ctrl+c cancels. 1-5 switch tabs.
 
 Needs an interactive terminal; scripts and agents use the other commands.`,
 		Args: cobra.NoArgs,
@@ -39,7 +42,7 @@ Needs an interactive terminal; scripts and agents use the other commands.`,
 				return errors.New("noot tui needs an interactive terminal; in scripts use search, today, agenda or reminder")
 			}
 			return run(cmd, opts, true, func(e *env) error {
-				ports := tui.Ports{Notes: e.svc, Journal: e.svc, Agenda: e.svc, Reminders: e.svc}
+				ports := tui.Ports{Notes: e.svc, Journal: e.svc, Agenda: e.svc, Reminders: e.svc, Todo: e.svc}
 				views := tui.Views(e.ctx, ports, tui.Options{
 					Editor:   kit.External{Abs: e.svc.Vault.Abs},
 					Markdown: kit.NewGlamour(markdownStyle()),
