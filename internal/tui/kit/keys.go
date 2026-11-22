@@ -68,7 +68,7 @@ var Keys = KeyMap{
 	Parent:    key.NewBinding(key.WithKeys("h", "left", "backspace"), key.WithHelp("h", "terug")),
 	SearchBar: key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "zoek")),
 
-	Tabs:     key.NewBinding(key.WithKeys("1", "2", "3", "4"), key.WithHelp("1-4", "tab")),
+	Tabs:     key.NewBinding(key.WithKeys("1", "2", "3", "4", "5"), key.WithHelp("1-5", "tab")),
 	Previous: key.NewBinding(key.WithKeys("["), key.WithHelp("[", "vorige")),
 	Next:     key.NewBinding(key.WithKeys("]"), key.WithHelp("]", "volgende")),
 	Today:    key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "vandaag")),

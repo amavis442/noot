@@ -76,7 +76,7 @@ func TestTypingSearchesLiveAndPreviewsTheFirstHit(t *testing.T) {
 	m, _, _ := newModel()
 	kittest.Run(t, m, m.Init())
 	if m.Capturing() {
-		t.Fatal("the search bar has no keyboard at first, so 1-4 switch tabs")
+		t.Fatal("the search bar has no keyboard at first, so 1-5 switch tabs")
 	}
 	kittest.Type(t, m, "/", "rogge")
 	out := m.View()

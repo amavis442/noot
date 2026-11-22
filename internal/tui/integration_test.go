@@ -48,7 +48,7 @@ func newVault(t *testing.T) *app.Service {
 
 func start(t *testing.T, svc *app.Service, ed kit.Editing) *teatest.TestModel {
 	t.Helper()
-	ports := tui.Ports{Notes: svc, Journal: svc, Agenda: svc, Reminders: svc}
+	ports := tui.Ports{Notes: svc, Journal: svc, Agenda: svc, Reminders: svc, Todo: svc}
 	views := tui.Views(context.Background(), ports, tui.Options{Editor: ed, Markdown: kit.NewGlamour("notty"), Now: func() time.Time { return now }})
 	return teatest.NewTestModel(t, tui.New("test", views...), teatest.WithInitialTermSize(110, 30))
 }
@@ -160,5 +160,46 @@ func TestAgendaSavesOneDayInTheWeekFile(t *testing.T) {
 		if has := strings.Contains(d.Content, "Kaas kopen"); has != (d.Date == "2026-11-01") {
 			t.Errorf("%s: Kaas kopen = %v, want it on Sunday only", d.Date, has)
 		}
+	}
+}
+
+func TestTodoTabTicksTasksInTheirFiles(t *testing.T) {
+	svc := newVault(t)
+	if err := os.MkdirAll(svc.Vault.Abs("agenda"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	backlog := "# Agenda\n\n## Planned\n\n- [ ] **Rust leren** (ooit)\n\n## Done\n\n"
+	if err := os.WriteFile(svc.Vault.Abs("agenda/agenda.md"), []byte(backlog), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range []struct {
+		text string
+		due  time.Time
+	}{{"Tandarts bellen", time.Date(2026, 10, 29, 0, 0, 0, 0, time.Local)}, {"Brood bakken", time.Date(2026, 10, 31, 0, 0, 0, 0, time.Local)}} {
+		if _, err := svc.AddReminder(r.text, r.due, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	tm := start(t, svc, &kittest.Editor{})
+	tm.Type("5")
+	waitFor(t, tm, "Rust leren") // the last task of the list
+	// Each tick takes the task off the list, so the cursor is on the next one:
+	// the overdue reminder, the one for today, then the backlog item.
+	tm.Type(" ")
+	waitFor(t, tm, "Afgevinkt: Tandarts bellen")
+	tm.Type("x")
+	waitFor(t, tm, "Afgevinkt: Brood bakken")
+	tm.Type("x")
+	waitFor(t, tm, "Afgevinkt: **Rust leren** (ooit)")
+	finalView(t, tm)
+
+	rs, err := svc.Reminders(false)
+	if err != nil || len(rs) != 0 {
+		t.Fatalf("open reminders = %+v, %v", rs, err)
+	}
+	b, err := os.ReadFile(svc.Vault.Abs("agenda/agenda.md"))
+	if err != nil || !strings.Contains(string(b), "## Done\n\n- [x] **Rust leren** (ooit) · done 2026-10-31\n") {
+		t.Fatalf("agenda.md:\n%s\n%v", b, err)
 	}
 }

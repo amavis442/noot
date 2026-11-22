@@ -1,293 +1,319 @@
 # noot 🐿️
 
-*Een second brain van gewone Markdown-bestanden.* Net als een eekhoorn verstop je je nootjes, en `noot` helpt je ze terug te vinden.
+*A second brain made of plain Markdown files.* *Noot* is Dutch for "nut": like a squirrel you hide your nuts, and `noot` helps you find them again.
 
-De bestanden zijn de bron van waarheid. `noot` bouwt er een index naast (SQLite + FTS5 in `.noot/index.db`). Die index is altijd weg te gooien en opnieuw op te bouwen. Je schrijft in je eigen editor, synct met git, en `noot` regelt zoeken, backlinks, tags en dagnotities.
+The files are the source of truth. `noot` builds an index next to them (SQLite + FTS5 in `.noot/index.db`). The index can always be thrown away and rebuilt. You write in your own editor, sync with git, and `noot` takes care of search, backlinks, tags and daily notes.
 
-## Installeren
+## Installing
 
 ```bash
-go mod tidy                       # eerste keer: haalt de ontbrekende checksums op
-make                              # → bin/noot (Linux) of bin\noot.exe (Windows)
-make install                      # go install met versie-info → $GOPATH/bin
+go mod tidy                       # first time: fetches the missing checksums
+make                              # → bin/noot (Linux) or bin\noot.exe (Windows)
+make install                      # go install with version info → $GOPATH/bin
 ```
 
-| Make-target | Wat |
+| Make target | What |
 |---|---|
-| `make` / `make build` | Build voor dit systeem; `.exe` wordt automatisch toegevoegd op Windows |
-| `make build-linux` / `make build-windows` | Cross-compile naar `bin/` |
-| `make dist` | Release-binaries in `dist/` voor linux en windows (amd64 + arm64), met de web-frontend erin (bouwt eerst `make web`) |
-| `make test` | `go vet` + alle tests: unit, integratie (echte SQLite) en end-to-end (`e2e/`: bouwt de binary en draait elk commando tegen tijdelijke vaults) |
-| `make web` | Web-frontend bouwen naar `web/dist/`; de volgende `make` neemt hem op in de binary (Node.js nodig) |
-| `make web-test` | Frontend-tests (Vitest; Node.js nodig) |
-| `make run ARGS="search sqlite"` | Draaien zonder te installeren (`go run`) |
+| `make` / `make build` | Build for this system; `.exe` is added automatically on Windows |
+| `make build-linux` / `make build-windows` | Cross-compile into `bin/` |
+| `make dist` | Release binaries in `dist/` for linux and windows (amd64 + arm64), with the web frontend built in (runs `make web` first) |
+| `make test` | `go vet` + all tests: unit, integration (real SQLite) and end-to-end (`e2e/`: builds the binary and runs every command against temporary vaults) |
+| `make web` | Build the web frontend into `web/dist/`; the next `make` embeds it in the binary (needs Node.js) |
+| `make web-test` | Frontend tests (Vitest; needs Node.js) |
+| `make run ARGS="search sqlite"` | Run without installing (`go run`) |
 | `make clean` / `fmt` / `tidy` / `help` | |
 
-De Makefile werkt met elke GNU make, op Linux en op Windows (native, MSYS2 of Git Bash), en vanuit cmd, PowerShell of bash. De recipes roepen alleen `go`, `make` en `echo` aan, dus het maakt niet uit welke shell make gebruikt. `noot --version` toont de git-commit die Go in de binary zet; voor een release geef je `make dist VERSION=v0.2.0` mee.
+The Makefile works with any GNU make, on Linux and on Windows (native, MSYS2 or Git Bash), and from cmd, PowerShell or bash. The recipes only call `go`, `make` and `echo`, so it does not matter which shell make uses. `noot --version` shows the git commit Go embeds in the binary; for a release pass `make dist VERSION=v0.2.0`.
 
-Voor `make` en `make test` heb je geen Node.js nodig. Zonder `make web` toont `noot serve` op `/` alleen een melding dat de frontend niet is ingebouwd; de JSON-API werkt dan wel.
+`make` and `make test` do not need Node.js. Without `make web`, `noot serve` only shows a notice on `/` that the frontend is not built in; the JSON API still works.
 
-Er is geen cgo nodig: de SQLite-driver (`ncruces/go-sqlite3`) draait als WebAssembly via wazero. Je hebt dus geen C-compiler nodig, en alle binaries zijn statisch.
+There is no cgo: the SQLite driver (`ncruces/go-sqlite3`) runs as WebAssembly through wazero. So you need no C compiler, and all binaries are static.
 
-De eerste keer dat noot draait, compileert hij SQLite (ongeveer 1 seconde) en bewaart het resultaat in `%LocalAppData%\noot\wazero` (Windows) of `~/.cache/noot/wazero` (Linux). Daarna start elk commando binnen enkele milliseconden. Een andere plek stel je in met `$NOOT_CACHE_DIR`.
+The first time noot runs it compiles SQLite (about 1 second) and keeps the result in `%LocalAppData%\noot\wazero` (Windows) or `~/.cache/noot/wazero` (Linux). After that every command starts within a few milliseconds. Set another location with `$NOOT_CACHE_DIR`.
 
-## Snel starten
+## Quick start
 
 ```bash
-noot init D:\Noot\Patrick         # maakt journal/ zettels/ projects/ attachments/ .noot/ + .gitignore, geregistreerd als "patrick"
+noot init D:\Noot\Patrick         # creates journal/ zettels/ projects/ attachments/ .noot/ + .gitignore, registered as "patrick"
 cd D:\Noot\Patrick
-noot today                        # opent journal/2026-10-24.md in $EDITOR
-noot agenda                       # opent agenda/2026-W43.md, de agenda van deze week
-noot reminder "Tandarts bellen" --due vrijdag
-noot new "Clean architecture in Go" -t go -t architectuur
-noot search clean arch            # prefix-match, accenten worden genegeerd (cafe = café)
+noot today                        # opens journal/2026-10-24.md in $EDITOR
+noot agenda                       # opens agenda/2026-W43.md, this week's agenda
+noot reminder "Call the dentist" --due friday
+noot new "Clean architecture in Go" -t go -t architecture
+noot search clean arch            # prefix match, accents are ignored (cafe = café)
 noot backlinks "clean architecture in go"
 ```
 
-## Meerdere vaults: jij en je agent
+## Several vaults: you and your agent
 
-Je kunt meerdere vaults een naam geven. Het idee is een vault voor jezelf en een aparte vault voor je AI-agent. Daarin houdt de agent zijn logs, geheugen en beslissingen bij, zonder in jouw notities te schrijven.
+You can give several vaults a name. The idea is one vault for yourself and a separate vault for your AI agent. The agent keeps its logs, memory and decisions there, without writing in your notes.
 
 ```bash
-noot init D:\Noot\Patrick --name patrick           # persoonlijk: journal/ zettels/ projects/ attachments/
+noot init D:\Noot\Patrick --name patrick           # personal: journal/ zettels/ projects/ attachments/
 noot init D:\Noot\Claude  --name claude --agent    # agent: AGENTS.md logs/ memory/ decisions/ projects/ scratch/
 noot vault list
 #   A claude   agent     D:\Noot\Claude
 #   * patrick  personal  D:\Noot\Patrick
 ```
 
-`init` registreert een vault altijd. Zonder `--name` wordt de mapnaam de naam (`D:\Noot\Claude` wordt `claude`), en een map die al geregistreerd is, houdt zijn naam. Wordt een naam al gebruikt voor een andere map, dan stopt `init` voordat er iets wordt aangemaakt. Kies dan zelf een naam met `--name`. Zo overschrijft een vault nooit ongemerkt een andere.
+`init` always registers a vault. Without `--name` the folder name becomes the name (`D:\Noot\Claude` becomes `claude`), and a folder that is already registered keeps its name. If a name is already used for another folder, `init` stops before anything is created; pick a name with `--name`. That way a vault never silently overwrites another.
 
-Je kunt alle vaults onder één map zetten, bijvoorbeeld `D:\Noot\`. Een vault slaat submappen met een eigen `.noot/` altijd over, dus vaults kunnen niet per ongeluk elkaars notities indexeren.
+You can put all vaults under one folder, for example `D:\Noot\`. A vault always skips subfolders with their own `.noot/`, so vaults cannot index each other's notes by accident.
 
-De eerste persoonlijke vault wordt de **default** (`*`) en de eerste agent-vault de **agent-vault** (`A`). Dat kun je later veranderen met `noot vault default <naam>` en `noot vault agent <naam>`. De namen staan in `%AppData%\noot\config.yaml` (Windows) of `~/.config/noot/config.yaml` (Linux), of op de plek die je met `$NOOT_CONFIG` opgeeft.
+The first personal vault becomes the **default** (`*`) and the first agent vault the **agent vault** (`A`). You can change that later with `noot vault default <name>` and `noot vault agent <name>`. The names are stored in `%AppData%\noot\config.yaml` (Windows) or `~/.config/noot/config.yaml` (Linux), or in the place you give with `$NOOT_CONFIG`.
 
-**Welke vault wordt gebruikt?** De eerste regel die past, wint:
+**Which vault is used?** The first rule that applies wins:
 
-1. `-A` / `--agent`: de agent-vault
-2. `-V <naam|pad>`: een geregistreerde naam of een map
-3. `$NOOT_VAULT`: hetzelfde, maar dan uit de omgeving
-4. de huidige map, als die in een vault met `.noot/` ligt
-5. de default-vault
+1. `-A` / `--agent`: the agent vault
+2. `-V <name|path>`: a registered name or a folder
+3. `$NOOT_VAULT`: the same, but from the environment
+4. the current folder, if it is inside a vault with a `.noot/`
+5. the default vault
 
-Speciaal voor de agent-vault zijn er een paar commando's, die je overigens in elke vault kunt gebruiken:
+A few commands are made for the agent vault, though you can use them in any vault:
 
 ```bash
-noot -A context noot                                  # projectnotitie + verwante notities + recente logregels
-noot -A log -p noot -t release "v0.2.0 getagd"        # → logs/2026-10-24.md, "## 13:25 · [[noot]] #release"
-git log -1 --oneline | noot -A log -p noot             # tekst via stdin
-noot -A append --create projects/noot "- [ ] serve"    # aan een notitie toevoegen
-noot -A cat memory/index                               # notitie printen (--json voor agents)
-noot search --all sqlite                               # zoeken in álle vaults, met [vault]-prefix
+noot -A context noot                                  # project note + related notes + recent log entries
+noot -A log -p noot -t release "v0.2.0 tagged"        # → logs/2026-10-24.md, "## 13:25 · [[noot]] #release"
+git log -1 --oneline | noot -A log -p noot             # text via stdin
+noot -A append --create projects/noot "- [ ] serve"    # append to a note
+noot -A cat memory/index                               # print a note (--json for agents)
+noot search --all sqlite                               # search in all vaults, with a [vault] prefix
 ```
 
-`AGENTS.md` in de agent-vault legt elke agent uit hoe de vault werkt: wat hij aan het begin van een sessie leest, waar hij wat wegschrijft, en dat hij in jouw vault alleen leest en niet schrijft.
+`AGENTS.md` in the agent vault tells every agent how the vault works: what to read at the start of a session, where to write what, and that it only reads your vault and never writes to it.
 
-Elk leescommando werkt de index eerst incrementeel bij (op basis van mtime en grootte, en het duurt milliseconden). Een aparte `index`-stap is dus niet nodig. Met `--no-sync` sla je dat over, en met `noot watch` houd je de index live bij.
+Every read command first updates the index incrementally (based on mtime and size; it takes milliseconds). A separate `index` step is therefore not needed. `--no-sync` skips it, and `noot watch` keeps the index live.
 
-## Commando's
+## Commands
 
-| Commando | Wat |
+| Command | What |
 |---|---|
-| `init [dir] [--name n] [--agent]` | Maakt de mappenstructuur, `.noot/` en `.gitignore` en registreert de vault, onder `--name` of anders onder de mapnaam |
-| `vault list\|add\|remove\|default\|agent` | Vaults met een naam beheren |
-| `log [-p project] [-t tag] <tekst>` | Regel met tijdstempel toevoegen aan `logs/JJJJ-MM-DD.md` (ook via stdin) |
-| `cat <note>` | Notitie printen |
-| `context <note> [--days 7] [-n 20]` | Notitie printen met de notities die ernaar linken of ernaast staan (bij `projects/x/x.md`), en de logregels van de laatste dagen die ernaar linken. Eén commando om een project op te pakken |
-| `rename <note\|bestand> [nieuw-pad] [--title t] [--dry-run]` | Notitie of bijlage (afbeelding, pdf) verplaatsen en/of de titel van een notitie wijzigen; alle links ernaar worden bijgewerkt in de vorm waarin ze geschreven zijn (pad, bestandsnaam of titel). Links via id of alias blijven gewoon werken, links in code blijven staan |
-| `append [--create] <note> <tekst>` | Tekst achter een notitie plakken (ook via stdin) |
-| `index [--full]` | Index bijwerken; `--full` bouwt alles opnieuw op |
-| `search <termen> [-t tag] [-n 20] [--raw] [--all]` | Full-text zoeken; met `--all` in alle vaults tegelijk. Met `--raw` gebruik je FTS5-syntax (`NEAR`, `OR`, `"exacte zin"`) |
-| `backlinks <note\|bestand>` (`bl`) | Wie linkt hiernaar, met de alinea als context. Ook voor een bijlage: `noot bl foto.png` |
-| `links <note>` | Uitgaande links (naar notities en bijlagen), gebroken links gemarkeerd met ✗ |
-| `broken` | Alle links die nergens heen gaan |
-| `orphans` | Notities zonder in- of uitgaande links |
-| `tags [tag]` | Tag-overzicht met aantallen, of de notities met een tag (`go` matcht ook `go/generics`) |
-| `new <titel> [-d zettels] [-t tag] [-o]` | Nieuwe notitie met frontmatter |
-| `today [--offset -1] [--print]` | Dagnotitie openen of aanmaken |
-| `agenda [--offset 1] [--print]` | Weekagenda openen of aanmaken: `agenda/JJJJ-Www.md` (ISO-week, maandag t/m zondag) met een kop per dag en daaronder Planned, Doing en Done; `--offset` telt in weken |
-| `reminder [tekst] [--due dag] [--all]` (`rem`) | Met tekst: reminder toevoegen aan `reminders.md`. Zonder tekst: de open reminders, vroegste datum eerst (`--all` toont ook de afgeronde) |
-| `reminder done <n>...` | Reminders afvinken; is de reminder ingepland, dan wordt hij ook in de agenda afgevinkt |
-| `reminder plan <n> <dag>` | Reminder onder Planned van die dag in de weekagenda zetten (de agenda wordt zo nodig aangemaakt) |
-| `open <note> [--print]` | Notitie openen via id, pad, bestandsnaam, titel of alias |
-| `watch` | Index live bijhouden (Ctrl+C om te stoppen) |
-| `serve [--addr 127.0.0.1:4242]` | Web-UI om te zoeken, notities te maken en te bewerken (ook de dagnotitie en de weekagenda) en reminders te beheren, plus een JSON-API (zie [Web-UI](#web-ui)). Houdt de index live bij zoals `watch` |
-| `tui` | Interactieve terminal-UI met zoeken, dagnotitie, weekagenda en reminders (zie [Terminal-UI](#terminal-ui)) |
-| `push [-m melding] [--no-pull]` | Alles committen en pushen: `git add -A`, commit, `pull --rebase`, `push` |
-| `pull` | Wijzigingen van elders binnenhalen (`pull --rebase --autostash`) en de index bijwerken |
-| `status` | Laten zien wat de volgende `push` meeneemt: gewijzigde bestanden (A/M/D) en commits die nog niet gepusht zijn. Kijkt alleen, zonder netwerk |
+| `init [dir] [--name n] [--agent]` | Creates the folder structure, `.noot/` and `.gitignore` and registers the vault, under `--name` or else the folder name |
+| `vault list\|add\|remove\|default\|agent` | Manage named vaults |
+| `log [-p project] [-t tag] <text>` | Append a timestamped entry to `logs/YYYY-MM-DD.md` (also via stdin) |
+| `cat <note>` | Print a note |
+| `context <note> [--days 7] [-n 20]` | Print a note with the notes that link to it or sit next to it (for `projects/x/x.md`), and the log entries of the last days that link to it. One command to pick up a project |
+| `rename <note\|file> [new-path] [--title t] [--dry-run]` | Move a note or an attachment (image, pdf) and/or change the title of a note; all links to it are updated in the form they were written in (path, file name or title). Links by id or alias keep working as they are, links inside code stay untouched |
+| `append [--create] <note> <text>` | Append text to a note (also via stdin) |
+| `index [--full]` | Update the index; `--full` rebuilds everything |
+| `search <terms> [-t tag] [-n 20] [--raw] [--all]` | Full-text search; `--all` searches all vaults at once. With `--raw` you use FTS5 syntax (`NEAR`, `OR`, `"exact phrase"`) |
+| `backlinks <note\|file>` (`bl`) | What links here, with the paragraph as context. Also for an attachment: `noot bl photo.png` |
+| `links <note>` | Outgoing links (to notes and attachments), broken links marked with ✗ |
+| `broken` | All links that go nowhere |
+| `orphans` | Notes without incoming or outgoing links |
+| `tags [tag]` | Tag overview with counts, or the notes with a tag (`go` also matches `go/generics`) |
+| `new <title> [-d zettels] [-t tag] [-o]` | New note with frontmatter |
+| `today [--offset -1] [--print]` | Open or create the daily note |
+| `agenda [--offset 1] [--print]` | Open or create the weekly agenda: `agenda/YYYY-Www.md` (ISO week, Monday to Sunday) with a heading per day and under it Planned, Doing and Done; `--offset` counts in weeks |
+| `reminder [text] [--due day] [--all]` (`rem`) | With text: add a reminder to `reminders.md`. Without text: the open reminders, earliest date first (`--all` also shows the done ones) |
+| `reminder done <n>...` | Tick reminders off; a planned reminder is ticked in the agenda too |
+| `reminder plan <n> <day>` | Put a reminder under Planned of that day in the weekly agenda (the agenda is created when needed) |
+| `todo [--today\|--week\|--all]` | Every task in one list: reminders, the backlog (`agenda/agenda.md`) and the weekly agendas, grouped as overdue, today, this week, later, backlog and done (see [Todo](#todo)) |
+| `open <note> [--print]` | Open a note by id, path, file name, title or alias |
+| `watch` | Keep the index live (Ctrl+C to stop) |
+| `serve [--addr 127.0.0.1:4242]` | Web UI to search, create and edit notes (also the daily note and the weekly agenda) and to manage reminders, plus a JSON API (see [Web UI](#web-ui)). Keeps the index live like `watch` |
+| `tui` | Interactive terminal UI with search, daily note, weekly agenda, reminders and todo (see [Terminal UI](#terminal-ui)) |
+| `push [-m message] [--no-pull]` | Commit and push everything: `git add -A`, commit, `pull --rebase`, `push` |
+| `pull` | Fetch changes from elsewhere (`pull --rebase --autostash`) and update the index |
+| `status` | Show what the next `push` will take along: changed files (A/M/D) and commits not pushed yet. Only looks, no network |
 
-In een terminal krijgen `search`, `reminder` en `status` kleur, in dezelfde stijl als `noot tui`: paden en treffers in de accentkleur, te late reminders in het rood, `A`/`M`/`D` in groen/geel/rood. De tekst zelf blijft precies hetzelfde. In een pipe of script, met `--json` of met `NO_COLOR` gezet is er geen kleur. In Git Bash/MSYS2 (mintty) ziet noot geen terminal en blijft de uitvoer ook zonder kleur.
+In a terminal, `search`, `reminder`, `todo` and `status` get colour, in the same style as `noot tui`: paths and matches in the accent colour, overdue reminders in red, `A`/`M`/`D` in green/yellow/red. The text itself stays exactly the same. In a pipe or script, with `--json` or with `NO_COLOR` set there is no colour. In Git Bash/MSYS2 (mintty) noot does not see a terminal and the output stays plain there too.
 
-Overal kun je `--json` toevoegen voor scripts, fzf of een AI-agent. Bijvoorbeeld:
+You can add `--json` everywhere, for scripts, fzf or an AI agent. For example:
 
 ```bash
 noot search --json repository | jq -r '.[].path' | fzf --preview 'bat --color=always {}'
 ```
 
-`<note>` wordt in deze volgorde opgezocht: **id → pad → bestandsnaam → titel → alias**, zonder onderscheid tussen hoofd- en kleine letters. Diezelfde volgorde wordt gebruikt om `[[wikilinks]]` op te lossen. Vindt een wikilink geen notitie, dan zoekt noot een bijlage met die naam (zie [Conventies](#conventies)).
+`<note>` is looked up in this order: **id → path → file name → title → alias**, case-insensitively. The same order is used to resolve `[[wikilinks]]`. If a wikilink finds no note, noot looks for an attachment with that name (see [Conventions](#conventions)).
 
-## Terminal-UI
+## Todo
+
+`noot todo` puts all tasks of your vault in one list. It reads three sources and keeps no administration of its own; no index is needed either, the files are read on every call:
+
+| Source | Which lines |
+|---|---|
+| `reminders.md` | all reminders |
+| `agenda/agenda.md` | the backlog without a day: `- [ ]`/`- [x]` lines under `## Planned`, `## Doing` and `## Done`. An item may carry `· due YYYY-MM-DD` or `· planned YYYY-MM-DD`, like a reminder; without a date it is in the backlog. Indented lines below an item belong to it |
+| `agenda/YYYY-Www.md` | only lines with a checkbox under `### Planned` and `### Doing`. Plain bullets such as `- Holiday 16-27` do not count. The day a line stands under is its planned day |
+
+A reminder you put in the week with `noot reminder plan` is in both files. Then only the reminder counts; the line with `([[reminders]])` in the week is skipped.
+
+A task goes in the group of its earliest date (`due` or `planned`): **Overdue** when that is before today, **Today**, **This week** (up to and including Sunday), **Later**, and without a date **Backlog**. Done tasks are under **Done**.
 
 ```bash
-noot tui                          # de vault die je ook met -V, -A of de huidige map kiest
+noot todo             # all open tasks
+noot todo --today     # overdue and today
+noot todo --week      # also the rest of this week
+noot todo --all       # also the done ones
+noot todo --json      # for scripts, with source, file, line and group per task
+```
+
+Every line ends with the file and line number. You tick tasks off in the [todo tab](#terminal-ui) of `noot tui`, or for reminders with `noot reminder done <n>`.
+
+## Terminal UI
+
+```bash
+noot tui                          # the vault that -V, -A or the current folder selects
 noot -A tui
 ```
 
-`noot tui` opent de vault schermvullend in de terminal (PowerShell, Windows Terminal en Linux-terminals), met vier tabs. Wisselen doe je met `1`-`4`; stoppen met `q` of `esc`. `?` toont alle toetsen van waar je bent.
+`noot tui` opens the vault full-screen in the terminal (PowerShell, Windows Terminal and Linux terminals), with five tabs. Switch with `1`-`5`; quit with `q` or `esc`. `?` shows all keys of where you are.
 
-De toetsen volgen de standaard van [superfile](https://superfile.dev/list/hotkey-list) (`spf`):
+The keys follow the defaults of [superfile](https://superfile.dev/list/hotkey-list) (`spf`):
 
-| Toets | Wat |
+| Key | What |
 |---|---|
-| `j`/`k`, `↓`/`↑`, `pgdn`/`pgup` | Omlaag/omhoog in een lijst of notitie |
-| `enter`, `l`, `→` | Openen: de gekozen notitie in je editor |
-| `tab`/`L`, `H` (`shift+←`) | Volgend/vorig paneel |
-| `/` | Naar de zoekbalk |
-| `f` | Preview aan/uit |
-| `e` | Bewerken in je editor |
-| `E` | Alles bewerken: in Agenda de hele week |
-| `ctrl+n` | Nieuw (reminder) |
-| `.` | Afgeronde reminders tonen/verbergen |
-| `enter` / `esc` of `ctrl+c` | Tijdens het typen: bevestigen / annuleren |
+| `j`/`k`, `↓`/`↑`, `pgdn`/`pgup` | Down/up in a list or note |
+| `enter`, `l`, `→` | Open: the selected note in your editor |
+| `tab`/`L`, `H` (`shift+←`) | Next/previous panel |
+| `/` | To the search bar |
+| `f` | Preview on/off |
+| `e` | Edit in your editor |
+| `E` | Edit everything: in Agenda the whole week |
+| `ctrl+n` | New (reminder) |
+| `.` | Show/hide done reminders and tasks (in Todo also `a`) |
+| `enter` / `esc` or `ctrl+c` | While typing: confirm / cancel |
 
-Daarnaast, waar superfile niets voor heeft: `J`/`K` (`shift+↓`/`↑`) om de preview te scrollen, `[` en `]` voor vorige/volgende dag of week, `t` voor vandaag, `x` om af te vinken en `p` om in te plannen.
+On top of that, where superfile has nothing: `J`/`K` (`shift+↓`/`↑`) to scroll the preview, `[` and `]` for previous/next day or week, `t` for today, `x` to tick off (in Todo also the space bar) and `p` to plan.
 
-| Tab | Wat |
+The tab names are Dutch, like the rest of the UI text:
+
+| Tab | What |
 |---|---|
-| **1 Zoeken** | Druk `/` om te zoeken; zoals in superfile heeft de zoekbalk bij het opstarten nog geen focus, zodat `1`-`4` meteen van tab wisselen. Een zoekbalk met twee panelen eronder: de resultaten, die bijwerken terwijl je typt, en de gekozen notitie opgemaakt. `#tag` in de zoekopdracht filtert op tag. Na het typen brengt `tab`, `enter` of `esc` je naar de resultaten, die de pijltjes houden; de preview krijgt nooit de focus, net als in superfile. Het paneel met de focus heeft een gekleurde rand |
-| **2 Vandaag** | De dagnotitie (wordt aangemaakt als hij ontbreekt) |
-| **3 Agenda** | De weekagenda per dag, geopend bij vandaag. Met `↑`/`↓` (`j`/`k`) kies je een dag; `e` opent alleen die dag in je editor en slaat hem daarna op in het weekbestand, net als *Bewerken* per dag in de web-UI. Is die dag intussen elders gewijzigd, dan wordt er niets overschreven en houdt de TUI je tekst vast: `e` opent jouw versie opnieuw. `E` bewerkt de hele week |
-| **4 Herinneringen** | De open reminders, te laat in het rood. Bij `ctrl+n` volgt na de tekst een uiterste datum (leeg is geen), bij `p` de dag (leeg is vandaag) |
+| **1 Zoeken** (search) | Press `/` to search; as in superfile the search bar has no focus at startup, so `1`-`5` switch tabs right away. A search bar with two panels under it: the results, which update while you type, and the selected note rendered. `#tag` in the query filters on tag. After typing, `tab`, `enter` or `esc` takes you to the results, which keep the arrows; the preview never gets the focus, as in superfile. The panel with the focus has a coloured border |
+| **2 Vandaag** (today) | The daily note (created when missing) |
+| **3 Agenda** | The weekly agenda day by day, opened at today. `↑`/`↓` (`j`/`k`) pick a day; `e` opens only that day in your editor and then saves it in the week file, like *Bewerken* (edit) per day in the web UI. If that day was changed elsewhere in the meantime, nothing is overwritten and the TUI keeps your text: `e` opens your version again. `E` edits the whole week |
+| **4 Herinneringen** (reminders) | The open reminders, overdue in red. With `ctrl+n` a due date follows after the text (empty is none), with `p` the day (empty is today) |
+| **5 Todo** | All tasks from reminders, backlog and weekly agendas (see [Todo](#todo)), grouped as Achterstallig (overdue), Vandaag (today), Deze week (this week), Later, Backlog and Klaar (done). `space` or `x` ticks off in the source file; if the line changed in the meantime nothing happens and the list reloads. A ticked backlog item moves to `## Done`; a reminder stays in `reminders.md`. `enter` or `e` opens the source file, `p` plans a reminder in the weekly agenda (reminders only; the other tasks are already in the agenda), `a` also shows the done ones |
 
-Met `e` open je wat je ziet in `$VISUAL` of `$EDITOR` (zonder die variabelen Notepad op Windows en `vi` op Linux), net als `noot open`. Na het sluiten van de editor komt de UI terug en wordt de index bijgewerkt. Een dag schrijf je zoals op de commandoregel: `2026-11-06`, `vandaag`, `morgen`, `+3` of `vrijdag`. Met `NO_COLOR` gezet verschijnt alles zonder kleur.
+With `e` you open what you see in `$VISUAL` or `$EDITOR` (without those variables Notepad on Windows and `vi` on Linux), like `noot open`. When you close the editor the UI comes back and the index is updated. You write a day as on the command line: `2026-11-06`, `today`, `tomorrow`, `+3` or `friday` (the Dutch words `vandaag`, `morgen` and `vrijdag` work too). With `NO_COLOR` set everything is shown without colour.
 
-`noot tui` heeft een echte terminal nodig. In een pipe of script stopt het met een foutmelding; gebruik daar de gewone commando's, die hun platte uitvoer en `--json` houden.
+`noot tui` needs a real terminal. In a pipe or script it stops with an error message; use the ordinary commands there, which keep their plain output and `--json`.
 
-## Web-UI
+## Web UI
 
 ```bash
-make web && make                  # eenmalig: frontend bouwen en in de binary zetten
+make web && make                  # once: build the frontend and put it in the binary
 noot serve                        # → http://127.0.0.1:4242
 noot -A serve --addr 127.0.0.1:8080
 ```
 
-`noot serve` serveert de vault die je ook met elk ander commando kiest (`-V`, `-A`, de huidige map of de default). In de UI kun je:
+`noot serve` serves the vault that every other command selects too (`-V`, `-A`, the current folder or the default). In the UI you can:
 
-- **Zoeken** met dezelfde zoekopdracht als `noot search` en een notitie openen. Wikilinks en Markdown-links zijn klikbaar.
-- **Elke notitie bewerken** met *Bewerken*: je bewerkt het hele bestand, frontmatter inbegrepen, met een voorbeeld ernaast dat meeloopt terwijl je typt. Is het bestand intussen buiten de UI gewijzigd (in je editor, of door `noot pull`), dan weigert opslaan en houdt de UI je tekst vast; *Herladen* haalt de versie van schijf op.
-- **Een nieuwe notitie maken** met een titel en optioneel tekst en tags. Nieuwe notities komen in `zettels/`.
-- **De dagnotitie** onder *Vandaag*, net als `noot today`, met bladeren naar de vorige en volgende dag.
-- **De weekagenda** onder *Agenda*, net als `noot agenda`, met bladeren per week. De week wordt aangemaakt als hij nog niet bestaat. Elke dag heeft een eigen *Bewerken*: je bewerkt alleen die dag, terwijl hij in het weekbestand blijft staan. Opslaan weigert alleen als juist die dag intussen elders is gewijzigd; een wijziging op een andere dag (zoals een ingeplande reminder) blijft gewoon staan. Met *Hele week bewerken* bewerk je het hele bestand.
-- **Reminders beheren** onder *Reminders*, net als `noot reminder`: toevoegen met een uiterste datum, afvinken en inplannen in de weekagenda. Een dag schrijf je zoals op de commandoregel: `2026-11-06`, `vandaag`, `morgen`, `+3` of `vrijdag`.
+- **Search** with the same query as `noot search` and open a note. Wikilinks and Markdown links are clickable.
+- **Edit any note** with *Bewerken* (edit): you edit the whole file, frontmatter included, with a preview next to it that follows as you type. If the file was changed outside the UI in the meantime (in your editor, or by `noot pull`), saving is refused and the UI keeps your text; *Herladen* (reload) fetches the version from disk.
+- **Create a new note** with a title and optionally text and tags. New notes go in `zettels/`.
+- **The daily note** under *Vandaag* (today), like `noot today`, with browsing to the previous and next day.
+- **The weekly agenda** under *Agenda*, like `noot agenda`, with browsing per week. The week is created when it does not exist yet. Every day has its own *Bewerken*: you edit only that day, while it stays in the week file. Saving is only refused if exactly that day was changed elsewhere in the meantime; a change on another day (such as a planned reminder) simply stays. With *Hele week bewerken* (edit the whole week) you edit the whole file.
+- **Manage reminders** under *Reminders*, like `noot reminder`: add with a due date, tick off and plan in the weekly agenda. You write a day as on the command line: `2026-11-06`, `today`, `tomorrow`, `+3` or `friday`.
 
-De API, voor scripts:
+The API, for scripts:
 
-| Endpoint | Wat |
+| Endpoint | What |
 |---|---|
-| `GET /api/search?q=…&tag=…&limit=…` | Zoekresultaten, net als `noot search --json` |
-| `GET /api/notes/{ref}` | Notitie via id, pad, bestandsnaam, titel of alias: `content` (het bestand), `html` (gerenderd) en `version`. Een link naar een bijlage wijst naar `/api/files/…` |
-| `GET /api/files/{pad}` | Een bijlage uit de vault, op het vault-pad (`assets/foto.png`). Afbeeldingen (png, jpg, gif, webp, avif, bmp, ico) komen inline; alles anders, ook svg en html, als download (`attachment`, `nosniff`, `sandbox`). Alleen bestanden die noot indexeert: geen notities, verborgen bestanden of symlinks |
-| `PUT /api/notes/{ref}` | Notitie opslaan; body `{"content": "…", "version": "…"}`. Geeft `409` als het bestand na het laden is gewijzigd |
-| `POST /api/notes` | Nieuwe notitie; body `{"title": "…", "body": "…", "tags": ["…"]}` |
-| `POST /api/preview` | Niet-opgeslagen tekst renderen zoals de notitie eruit komt te zien; body `{"path": "…", "content": "…"}`, antwoord `{"html": "…"}`. Leest en schrijft geen bestanden |
-| `GET /api/journal/{dag}` | Dagnotitie (wordt aangemaakt als hij ontbreekt), zoals een notitie plus `date`; `{dag}` mag ook `vandaag` zijn. Opslaan gaat via `PUT /api/notes/{pad}` |
-| `GET /api/agenda/{dag}` | Weekagenda van de week waarin `{dag}` valt (wordt aangemaakt als hij ontbreekt), plus `week`, `monday`, `intro_html` en `days` (per dag `date`, `heading`, `content`, `html` en `version`) |
-| `PUT /api/agenda/{dag}/day` | Eén dag van de agenda opslaan; body `{"content": "…", "version": "…"}` met de `version` van die dag. Geeft `409` als die dag na het laden is gewijzigd |
-| `GET /api/reminders?all=true` | Reminders, net als `noot reminder --json` (zonder `all` alleen de open) |
-| `POST /api/reminders` | Reminder toevoegen; body `{"text": "…", "due": "vrijdag"}` (`due` is optioneel) |
-| `POST /api/reminders/{n}/done` | Reminder `n` afvinken (body `{}`) |
-| `POST /api/reminders/{n}/plan` | Reminder `n` inplannen; body `{"day": "maandag"}` |
+| `GET /api/search?q=…&tag=…&limit=…` | Search results, like `noot search --json` |
+| `GET /api/notes/{ref}` | Note by id, path, file name, title or alias: `content` (the file), `html` (rendered) and `version`. A link to an attachment points to `/api/files/…` |
+| `GET /api/files/{path}` | An attachment from the vault, by vault path (`assets/photo.png`). Images (png, jpg, gif, webp, avif, bmp, ico) are served inline; everything else, svg and html included, as a download (`attachment`, `nosniff`, `sandbox`). Only files noot indexes: no notes, hidden files or symlinks |
+| `PUT /api/notes/{ref}` | Save a note; body `{"content": "…", "version": "…"}`. Gives `409` if the file changed after loading |
+| `POST /api/notes` | New note; body `{"title": "…", "body": "…", "tags": ["…"]}` |
+| `POST /api/preview` | Render unsaved text the way the note will look; body `{"path": "…", "content": "…"}`, answer `{"html": "…"}`. Reads and writes no files |
+| `GET /api/journal/{day}` | Daily note (created when missing), like a note plus `date`; `{day}` may also be `today`. Saving goes through `PUT /api/notes/{path}` |
+| `GET /api/agenda/{day}` | Weekly agenda of the week `{day}` falls in (created when missing), plus `week`, `monday`, `intro_html` and `days` (per day `date`, `heading`, `content`, `html` and `version`) |
+| `PUT /api/agenda/{day}/day` | Save one day of the agenda; body `{"content": "…", "version": "…"}` with the `version` of that day. Gives `409` if that day changed after loading |
+| `GET /api/reminders?all=true` | Reminders, like `noot reminder --json` (without `all` only the open ones) |
+| `POST /api/reminders` | Add a reminder; body `{"text": "…", "due": "friday"}` (`due` is optional) |
+| `POST /api/reminders/{n}/done` | Tick reminder `n` off (body `{}`) |
+| `POST /api/reminders/{n}/plan` | Plan reminder `n`; body `{"day": "monday"}` |
 
-Bodies stuur je als `application/json`.
+Send bodies as `application/json`.
 
-Op een loopback-adres (de standaard) beantwoordt de server alleen verzoeken voor `localhost`/`127.0.0.1`. Dat beschermt tegen DNS-rebinding. `POST` accepteert alleen JSON, zodat andere sites geen notities kunnen aanmaken. Er is geen login: bind niet op een openbaar adres.
+On a loopback address (the default) the server only answers requests for `localhost`/`127.0.0.1`. That protects against DNS rebinding. `POST` only accepts JSON, so other sites cannot create notes. There is no login: do not bind to a public address.
 
-### Frontend ontwikkelen
+### Developing the frontend
 
-De frontend staat in `web/` (React + TypeScript, Vite, Vitest). Met Node.js:
+The frontend is in `web/` (React + TypeScript, Vite, Vitest). With Node.js:
 
 ```bash
 cd web
 npm ci
-npm run dev                       # Vite op http://localhost:5173; /api gaat naar noot serve op :4242
+npm run dev                       # Vite on http://localhost:5173; /api goes to noot serve on :4242
 npm test                          # Vitest + Testing Library
-npm run build                     # typecheck + build naar web/dist/
+npm run build                     # typecheck + build into web/dist/
 ```
 
-Draai daarnaast `noot serve` voor de API. De code is per feature opgedeeld: `src/features/search`, `notes`, `journal`, `agenda` en `reminders` (hooks voor de logica, componenten voor de weergave) en `src/shared` (API-client, routing en het bewerken van notities, dat notes, journal en agenda delen).
+Also run `noot serve` for the API. The code is split per feature: `src/features/search`, `notes`, `journal`, `agenda` and `reminders` (hooks for the logic, components for the display) and `src/shared` (API client, routing and note editing, which notes, journal and agenda share).
 
-## Synchroniseren met git
+## Syncing with git
 
-Een vault is gewoon een git-repo. `noot push` doet de hele ronde in één keer:
+A vault is just a git repo. `noot push` does the whole round in one go:
 
 ```bash
-noot push                     # commit "noot: 3f9a1c2e4b7d" + lijst met gewijzigde bestanden, pull --rebase, push
-noot push -m "Weekly review"  # eigen melding
-noot -A push                  # de agent-vault
-noot status                   # wat gaat er met de volgende push mee?
-noot pull                     # binnenhalen wat elders is gepusht
+noot push                     # commit "noot: 3f9a1c2e4b7d" + list of changed files, pull --rebase, push
+noot push -m "Weekly review"  # your own message
+noot -A push                  # the agent vault
+noot status                   # what goes along with the next push?
+noot pull                     # fetch what was pushed elsewhere
 ```
 
-- De standaardmelding is `noot: <hash>`: de eerste 12 tekens van de hash van de inhoud van de vault (`git write-tree`). Identieke inhoud geeft dus dezelfde hash. In de body staan de gewijzigde bestanden.
-- Is er iets te pushen, dan eerst `git pull --rebase`, zodat een push vanaf een andere machine (of van je agent) wordt meegenomen in plaats van geweigerd. Daarna werkt noot de index bij.
-- Is er niets te pushen, dan zegt noot meteen `nothing to push`, zonder contact met de remote. Dat scheelt de netwerktijd (bij GitHub al gauw 1 tot 2 seconden).
-- Wijzigingen van elders binnenhalen doe je met `noot pull`. Lokale, nog niet gecommitte wijzigingen blijven daarbij staan.
-- Heeft de branch nog geen upstream maar wel een `origin`, dan doet noot `git push -u origin HEAD`. Zonder remote wordt er alleen lokaal gecommit.
-- `.noot/` (de index) komt nooit in git; noot zet het zo nodig in `.gitignore`.
-- noot gebruikt `git` uit je PATH, dus je eigen config, credentials en SSH-sleutels.
+- The default message is `noot: <hash>`: the first 12 characters of the hash of the vault's content (`git write-tree`). Identical content therefore gives the same hash. The body lists the changed files.
+- If there is something to push, `git pull --rebase` runs first, so a push from another machine (or from your agent) is taken along instead of being rejected. Then noot updates the index.
+- If there is nothing to push, noot says `nothing to push` at once, without contacting the remote. That saves the network time (with GitHub easily 1 to 2 seconds).
+- You fetch changes from elsewhere with `noot pull`. Local, not yet committed changes stay put.
+- If the branch has no upstream yet but there is an `origin`, noot runs `git push -u origin HEAD`. Without a remote it only commits locally.
+- `.noot/` (the index) never goes into git; noot adds it to `.gitignore` when needed.
+- noot uses the `git` from your PATH, so your own config, credentials and SSH keys.
 
-## Conventies
+## Conventions
 
 ```markdown
 ---
-id: 01M5Q07ST0D58RJ8G68GBWRR3S   # optioneel; zonder id is het pad (zonder .md) de id
+id: 01M5Q07ST0D58RJ8G68GBWRR3S   # optional; without an id the path (without .md) is the id
 title: Clean architecture in Go
-tags: [go, architectuur]    # of: tags: go, architectuur
-aliases: [hexagonaal]
+tags: [go, architecture]    # or: tags: go, architecture
+aliases: [hexagonal]
 created: 2026-10-24
 ---
 # Clean architecture in Go
 
-Zie [[repository-pattern]], [[Repository pattern|label]], [[note#kop]]
-of een gewone link: [tekst](../projects/benstartpagina.md). #refactoring #go/patterns
+See [[repository-pattern]], [[Repository pattern|label]], [[note#heading]]
+or an ordinary link: [text](../projects/startpage.md). #refactoring #go/patterns
 ```
 
-- Links en tags in codeblokken en `inline code` worden genegeerd.
-- **Bijlagen**: een link kan ook naar een ander bestand dan een notitie wijzen: `[[foto.png]]`, `[[scans/contract.pdf|het contract]]`, `![[schema.png]]`, `[pdf](bijlagen/a.pdf)` of `![](plaatje.png)`. Elk niet-verborgen bestand telt mee, ongeacht het type. Zo worden ze opgelost:
-  - Een notitie wint van een bijlage: heet een notitie `v1.2` en bestaat er ook een bestand `v1.2`, dan is `[[v1.2]]` de notitie.
-  - Een wikilink naar een bijlage werkt op pad (`assets/foto.png`) of op bestandsnaam (`foto.png`); bij dezelfde naam in meerdere mappen wint het kortste pad. Een Markdown-link is altijd een pad.
-  - Bijlagen staan niet in de zoekindex en hebben geen titel of tags; ze zijn alleen een doel voor links. `broken`, `links` en `backlinks` kennen ze, en `rename` verplaatst ze en past de links aan. Een rename die links op bestandsnaam zou overnemen van een ander bestand met een korter pad wordt geweigerd.
-  - In de web-UI wordt `![[foto.png]]` een afbeelding en elke andere link een download. Een svg is nooit een `<img>`, omdat die scripts kan bevatten.
-- Mappen en bestanden die met `.` beginnen (`.git`, `.obsidian`, `.noot`) en `node_modules` worden overgeslagen; symlinks naar bestanden tellen niet als bijlage.
-- Twee bestanden met dezelfde `id` krijg je als waarschuwing te zien; het tweede bestand wordt dan overgeslagen.
-- `noot new` geeft elke notitie een ULID: 26 tekens, uniek zonder in de rest van de vault te kijken, en
-  toch op aanmaaktijd gesorteerd. Een eigen id mag ook; elke tekst is goed, ook de tijdstempels
-  (`20261024130512`) uit oudere notities.
-- Een bestaande Obsidian-vault werkt gewoon. Logseq-graphs met Markdown ook, al zijn blok-referenties (`((uuid))`) nog niet ondersteund.
+- Links and tags in code blocks and `inline code` are ignored.
+- **Attachments**: a link can also point to a file other than a note: `[[photo.png]]`, `[[scans/contract.pdf|the contract]]`, `![[diagram.png]]`, `[pdf](attachments/a.pdf)` or `![](picture.png)`. Every non-hidden file counts, whatever its type. This is how they are resolved:
+  - A note wins over an attachment: if a note is called `v1.2` and a file `v1.2` exists too, `[[v1.2]]` is the note.
+  - A wikilink to an attachment works by path (`assets/photo.png`) or by file name (`photo.png`); with the same name in several folders the shortest path wins. A Markdown link is always a path.
+  - Attachments are not in the search index and have no title or tags; they are only a target for links. `broken`, `links` and `backlinks` know them, and `rename` moves them and adjusts the links. A rename that would take over links by file name from another file with a shorter path is refused.
+  - In the web UI `![[photo.png]]` becomes an image and every other link a download. An svg is never an `<img>`, because it can contain scripts.
+- Folders and files that start with `.` (`.git`, `.obsidian`, `.noot`) and `node_modules` are skipped; symlinks to files do not count as attachments.
+- Two files with the same `id` show up as a warning; the second file is then skipped.
+- `noot new` gives every note a ULID: 26 characters, unique without looking at the rest of the vault, and still sorted by creation time. An id of your own is fine too; any text will do, also the timestamps (`20261024130512`) from older notes.
+- An existing Obsidian vault just works. Logseq graphs with Markdown too, although block references (`((uuid))`) are not supported yet.
 
-## Architectuur
+## Architecture
 
 ```
 cmd/noot/                 main
-internal/domain/          Note, Link, NoteRef, FileRef … (geen dependencies)
+internal/domain/          Note, Link, NoteRef, FileRef, Task … (no dependencies)
 internal/parser/          Markdown → domain.Note (goldmark AST + frontmatter)
-internal/vault/           Bestandslayout: root vinden, scannen, notities/journal aanmaken
-internal/app/             Use cases: Sync, Watch, Resolve, notities, dagnotitie en reminders; definieert de Store-port
-internal/storage/sqlite/  Store-implementatie (SQLite + FTS5)
-internal/cli/             cobra-commando's en output
-internal/httpapi/         HTTP-adapter voor noot serve: JSON-API over de use cases + statische bestanden
-internal/tui/             Terminal-adapter voor noot tui (Bubble Tea): één package per tab, gedeelde stijl in tui/kit
-internal/editor/          $VISUAL/$EDITOR-commando, gedeeld door noot open en noot tui
-internal/theme/           Kleurenpalet, gedeeld door noot tui en de gekleurde uitvoer van de commando's
-web/                      React-frontend; web/dist wordt via go:embed in de binary gezet
+internal/vault/           File layout: finding the root, scanning, creating notes/journal, reading and ticking tasks
+internal/app/             Use cases: Sync, Watch, Resolve, notes, daily note, reminders and todo; defines the Store port
+internal/storage/sqlite/  Store implementation (SQLite + FTS5)
+internal/cli/             cobra commands and output
+internal/httpapi/         HTTP adapter for noot serve: JSON API over the use cases + static files
+internal/tui/             Terminal adapter for noot tui (Bubble Tea): one package per tab, shared style in tui/kit
+internal/editor/          $VISUAL/$EDITOR command, shared by noot open and noot tui
+internal/theme/           Colour palette, shared by noot tui and the coloured command output
+web/                      React frontend; web/dist is embedded in the binary through go:embed
 ```
 
-Afhankelijkheden lopen naar binnen: `cli`/`httpapi`/`tui → app → domain`, en `storage` implementeert `app.Store`. Wil je een andere zoekmotor (bleve, Meilisearch) of semantisch zoeken met embeddings, dan schrijf je een nieuwe Store. De rest blijft hetzelfde.
+Dependencies point inward: `cli`/`httpapi`/`tui → app → domain`, and `storage` implements `app.Store`. If you want another search engine (bleve, Meilisearch) or semantic search with embeddings, you write a new Store. The rest stays the same.
 
-## Ideeën voor later
+## Ideas for later
 
-- Web-UI uitbreiden: backlinks en een graph (`/graph.json` + cytoscape.js)
-- Semantisch zoeken: embeddings via Ollama naast FTS5 (sqlite-vec of een eigen tabel)
-- Auto-commit: `noot sync` die `git add/commit/pull --rebase/push` uitvoert
-- Templates in `.noot/templates/` voor `new` en `today`
+- Extend the web UI: backlinks and a graph (`/graph.json` + cytoscape.js)
+- Semantic search: embeddings through Ollama next to FTS5 (sqlite-vec or a table of its own)
+- Auto-commit: `noot sync` that runs `git add/commit/pull --rebase/push`
+- Templates in `.noot/templates/` for `new` and `today`

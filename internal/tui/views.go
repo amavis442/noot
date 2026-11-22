@@ -9,6 +9,7 @@ import (
 	"github.com/amavis442/noot/internal/tui/kit"
 	"github.com/amavis442/noot/internal/tui/reminders"
 	"github.com/amavis442/noot/internal/tui/search"
+	"github.com/amavis442/noot/internal/tui/todo"
 )
 
 // Ports are the app use cases the views call; *app.Service implements each.
@@ -17,6 +18,7 @@ type Ports struct {
 	Journal   journal.Journal
 	Agenda    agenda.Agenda
 	Reminders reminders.Reminders
+	Todo      todo.Todo
 }
 
 // Options are what the views share besides the use cases.
@@ -26,12 +28,13 @@ type Options struct {
 	Now      func() time.Time
 }
 
-// Views returns the tabs in their order: search, today, agenda, reminders.
+// Views returns the tabs in their order: search, today, agenda, reminders, todo.
 func Views(ctx context.Context, p Ports, o Options) []kit.View {
 	return []kit.View{
 		search.New(ctx, p.Notes, o.Markdown, o.Editor),
 		journal.New(ctx, p.Journal, o.Markdown, o.Editor, o.Now),
 		agenda.New(ctx, p.Agenda, o.Markdown, o.Editor, o.Now),
 		reminders.New(p.Reminders, o.Editor, o.Now),
+		todo.New(p.Todo, o.Editor, o.Now),
 	}
 }

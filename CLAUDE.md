@@ -21,7 +21,7 @@ Patrick's own vault (`*`) is **read-only** for agents unless he asks for a speci
 
 Patrick's global `~/.claude/CLAUDE.md` applies; the points that matter most here:
 
-- Converse in Dutch; code, comments, commit messages, PRs and tags in English. The README is Dutch.
+- Converse in Dutch; code, comments, commit messages, PRs and tags in English. The README is English.
 - Commit as `Amavis442 <patteun8@gmail.com>`. Never add Co-Authored-By or other AI attribution trailers.
 - **`main` is protected on GitHub: never push to it.** Every change starts with a work item (a GitHub issue, `gh issue create`) and a branch named after it: `<type>/<issue-nr>-<short-slug>`, e.g. `feat/12-vault-export` or `fix/13-watch-crash` (`chore/` for housekeeping). Commit there, push the branch and open a PR that references the issue (`Closes #<nr>`). Patrick merges and tags. This applies to the noot repo only. Every other code repo: `feat/*` / `fix/*` branches + PR, never push `main` or tags.
 - TDD; unit, integration **and** end-to-end tests (`make test` runs all three). No exceptions.

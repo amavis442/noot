@@ -77,7 +77,7 @@ type Model struct {
 }
 
 // New returns the search tab. As in superfile, the search bar takes the
-// keyboard only after /, so 1-4 switch tabs right after startup.
+// keyboard only after /, so 1-5 switch tabs right after startup.
 func New(ctx context.Context, notes Notes, md kit.Markdown, ed kit.Editor) *Model {
 	in := textinput.New()
 	in.Prompt = "/ "
