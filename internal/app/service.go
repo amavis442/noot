@@ -20,11 +20,18 @@ type Store interface {
 	FileStates(ctx context.Context) (map[string]domain.FileState, error)
 	Upsert(ctx context.Context, notes []domain.Note) (skipped []error, err error)
 	DeletePaths(ctx context.Context, paths []string) error
+	// SetFiles makes files the set of non-note files the index knows, and
+	// reports whether that changed anything.
+	SetFiles(ctx context.Context, files map[string]domain.FileState) (changed bool, err error)
 	ResolveLinks(ctx context.Context) error
 	Reset(ctx context.Context) error
 	Count(ctx context.Context) (int, error)
 
 	Resolve(ctx context.Context, ref string) (*domain.NoteRef, error)
+	// ResolveFile finds a non-note file by path or file name.
+	ResolveFile(ctx context.Context, ref string) (*domain.FileRef, error)
+	// FileBacklinks returns the notes linking to the file at path.
+	FileBacklinks(ctx context.Context, path string) ([]domain.Backlink, error)
 	Search(ctx context.Context, q domain.SearchQuery) ([]domain.SearchHit, error)
 	Backlinks(ctx context.Context, id string) ([]domain.Backlink, error)
 	OutLinks(ctx context.Context, id string) ([]domain.OutLink, error)
@@ -71,6 +78,10 @@ func (s *Service) Sync(ctx context.Context, full bool) (SyncStats, error) {
 	onDisk, err := s.Vault.Walk()
 	if err != nil {
 		return st, fmt.Errorf("scan vault: %w", err)
+	}
+	files, err := s.Vault.WalkFiles()
+	if err != nil {
+		return st, fmt.Errorf("scan vault files: %w", err)
 	}
 	indexed, err := s.Store.FileStates(ctx)
 	if err != nil {
@@ -123,7 +134,11 @@ func (s *Service) Sync(ctx context.Context, full bool) (SyncStats, error) {
 		return st, err
 	}
 	st.Errors = append(st.Errors, skipped...)
-	if len(notes) > 0 || len(removed) > 0 {
+	filesChanged, err := s.Store.SetFiles(ctx, files)
+	if err != nil {
+		return st, err
+	}
+	if len(notes) > 0 || len(removed) > 0 || filesChanged {
 		if err := s.Store.ResolveLinks(ctx); err != nil {
 			return st, err
 		}

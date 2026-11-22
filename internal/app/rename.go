@@ -32,12 +32,23 @@ type RenameResult struct {
 }
 
 // Rename moves a note and/or changes its title, then rewrites every link that
-// pointed to it so it still does. The note's own relative Markdown links are
+// pointed to it so it still does. A reference that is no note but a file of the
+// vault (an image, a PDF) moves that file and rewrites the links to it. The note's own relative Markdown links are
 // adjusted to its new folder. The index must be up to date.
 func (s *Service) Rename(ctx context.Context, ref string, opt RenameOptions) (*RenameResult, error) {
-	found, err := s.MustResolve(ctx, ref)
+	found, err := s.Store.Resolve(ctx, ref)
 	if err != nil {
 		return nil, err
+	}
+	if found == nil {
+		f, err := s.Store.ResolveFile(ctx, ref)
+		if err != nil {
+			return nil, err
+		}
+		if f == nil {
+			return nil, notFoundError{ref}
+		}
+		return s.renameFile(ctx, f.Path, opt)
 	}
 	content, err := os.ReadFile(s.Vault.Abs(found.Path))
 	if err != nil {

@@ -70,3 +70,25 @@ func TestUnclosedFrontmatterIsBody(t *testing.T) {
 		t.Errorf("links = %+v", n.Links)
 	}
 }
+
+func TestParseFileLinks(t *testing.T) {
+	src := "See [[photo.png]], ![[assets/diagram.png|Diagram]] and [[contract.pdf#page=2]].\n\n" +
+		"A [doc](files/a.pdf), an ![img](../pics/b.png), [folder](files/), [none](LICENSE), " +
+		"[web](https://example.com/c.png), [out](../../../x.png) and [sp](my%20file.pdf).\n\n" +
+		"```\n[[in-code.png]] ![x](code.png)\n```\n"
+	n, err := Parse("notes/n.md", []byte(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, l := range n.Links {
+		got = append(got, string(l.Kind)+":"+l.Target)
+	}
+	want := []string{
+		"wiki:photo.png", "wiki:assets/diagram.png", "wiki:contract.pdf",
+		"md:notes/files/a.pdf", "md:pics/b.png", "md:notes/my file.pdf",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("links = %v, want %v", got, want)
+	}
+}

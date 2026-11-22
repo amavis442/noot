@@ -129,6 +129,19 @@ func (v *Vault) EnsureGitignore() error {
 
 // Walk returns every note file with its state, keyed by vault-relative path.
 func (v *Vault) Walk() (map[string]domain.FileState, error) {
+	return v.walk(func(d fs.DirEntry) bool { return IsNote(d.Name()) })
+}
+
+// WalkFiles returns every other regular file that is not hidden (images, PDFs,
+// ...), keyed by vault-relative path. These are not notes, but notes can link
+// to them. Symbolic links are left out: they may point outside the vault.
+func (v *Vault) WalkFiles() (map[string]domain.FileState, error) {
+	return v.walk(func(d fs.DirEntry) bool {
+		return d.Type().IsRegular() && !IsNote(d.Name()) && !strings.HasPrefix(d.Name(), ".")
+	})
+}
+
+func (v *Vault) walk(keep func(fs.DirEntry) bool) (map[string]domain.FileState, error) {
 	out := map[string]domain.FileState{}
 	err := filepath.WalkDir(v.Root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -140,7 +153,7 @@ func (v *Vault) Walk() (map[string]domain.FileState, error) {
 			}
 			return nil
 		}
-		if !IsNote(d.Name()) {
+		if !keep(d) {
 			return nil
 		}
 		info, err := d.Info()

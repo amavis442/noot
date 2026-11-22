@@ -94,12 +94,12 @@ Every read command first updates the index incrementally (based on mtime and siz
 | `log [-p project] [-t tag] <text>` | Append a timestamped entry to `logs/YYYY-MM-DD.md` (also via stdin) |
 | `cat <note>` | Print a note |
 | `context <note> [--days 7] [-n 20]` | Print a note with the notes that link to it or sit next to it (for `projects/x/x.md`), and the log entries of the last days that link to it. One command to pick up a project |
-| `rename <note> [new-path] [--title t] [--dry-run]` | Move a note and/or change its title; all links to it are updated in the form they were written in (path, file name or title). Links by id or alias keep working as they are, links inside code stay untouched |
+| `rename <note\|file> [new-path] [--title t] [--dry-run]` | Move a note or an attachment (image, pdf) and/or change the title of a note; all links to it are updated in the form they were written in (path, file name or title). Links by id or alias keep working as they are, links inside code stay untouched |
 | `append [--create] <note> <text>` | Append text to a note (also via stdin) |
 | `index [--full]` | Update the index; `--full` rebuilds everything |
 | `search <terms> [-t tag] [-n 20] [--raw] [--all]` | Full-text search; `--all` searches all vaults at once. With `--raw` you use FTS5 syntax (`NEAR`, `OR`, `"exact phrase"`) |
-| `backlinks <note>` (`bl`) | What links here, with the paragraph as context |
-| `links <note>` | Outgoing links, broken links marked with ✗ |
+| `backlinks <note\|file>` (`bl`) | What links here, with the paragraph as context. Also for an attachment: `noot bl photo.png` |
+| `links <note>` | Outgoing links (to notes and attachments), broken links marked with ✗ |
 | `broken` | All links that go nowhere |
 | `orphans` | Notes without incoming or outgoing links |
 | `tags [tag]` | Tag overview with counts, or the notes with a tag (`go` also matches `go/generics`) |
@@ -126,7 +126,7 @@ You can add `--json` everywhere, for scripts, fzf or an AI agent. For example:
 noot search --json repository | jq -r '.[].path' | fzf --preview 'bat --color=always {}'
 ```
 
-`<note>` is looked up in this order: **id → path → file name → title → alias**, case-insensitively. The same order is used to resolve `[[wikilinks]]`.
+`<note>` is looked up in this order: **id → path → file name → title → alias**, case-insensitively. The same order is used to resolve `[[wikilinks]]`. If a wikilink finds no note, noot looks for an attachment with that name (see [Conventions](#conventions)).
 
 ## Todo
 
@@ -214,7 +214,8 @@ The API, for scripts:
 | Endpoint | What |
 |---|---|
 | `GET /api/search?q=…&tag=…&limit=…` | Search results, like `noot search --json` |
-| `GET /api/notes/{ref}` | Note by id, path, file name, title or alias: `content` (the file), `html` (rendered) and `version` |
+| `GET /api/notes/{ref}` | Note by id, path, file name, title or alias: `content` (the file), `html` (rendered) and `version`. A link to an attachment points to `/api/files/…` |
+| `GET /api/files/{path}` | An attachment from the vault, by vault path (`assets/photo.png`). Images (png, jpg, gif, webp, avif, bmp, ico) are served inline; everything else, svg and html included, as a download (`attachment`, `nosniff`, `sandbox`). Only files noot indexes: no notes, hidden files or symlinks |
 | `PUT /api/notes/{ref}` | Save a note; body `{"content": "…", "version": "…"}`. Gives `409` if the file changed after loading |
 | `POST /api/notes` | New note; body `{"title": "…", "body": "…", "tags": ["…"]}` |
 | `POST /api/preview` | Render unsaved text the way the note will look; body `{"path": "…", "content": "…"}`, answer `{"html": "…"}`. Reads and writes no files |
@@ -281,7 +282,12 @@ or an ordinary link: [text](../projects/startpage.md). #refactoring #go/patterns
 ```
 
 - Links and tags in code blocks and `inline code` are ignored.
-- Folders that start with `.` (`.git`, `.obsidian`, `.noot`) and `node_modules` are skipped.
+- **Attachments**: a link can also point to a file other than a note: `[[photo.png]]`, `[[scans/contract.pdf|the contract]]`, `![[diagram.png]]`, `[pdf](attachments/a.pdf)` or `![](picture.png)`. Every non-hidden file counts, whatever its type. This is how they are resolved:
+  - A note wins over an attachment: if a note is called `v1.2` and a file `v1.2` exists too, `[[v1.2]]` is the note.
+  - A wikilink to an attachment works by path (`assets/photo.png`) or by file name (`photo.png`); with the same name in several folders the shortest path wins. A Markdown link is always a path.
+  - Attachments are not in the search index and have no title or tags; they are only a target for links. `broken`, `links` and `backlinks` know them, and `rename` moves them and adjusts the links. A rename that would take over links by file name from another file with a shorter path is refused.
+  - In the web UI `![[photo.png]]` becomes an image and every other link a download. An svg is never an `<img>`, because it can contain scripts.
+- Folders and files that start with `.` (`.git`, `.obsidian`, `.noot`) and `node_modules` are skipped; symlinks to files do not count as attachments.
 - Two files with the same `id` show up as a warning; the second file is then skipped.
 - `noot new` gives every note a ULID: 26 characters, unique without looking at the rest of the vault, and still sorted by creation time. An id of your own is fine too; any text will do, also the timestamps (`20261024130512`) from older notes.
 - An existing Obsidian vault just works. Logseq graphs with Markdown too, although block references (`((uuid))`) are not supported yet.
@@ -290,7 +296,7 @@ or an ordinary link: [text](../projects/startpage.md). #refactoring #go/patterns
 
 ```
 cmd/noot/                 main
-internal/domain/          Note, Link, NoteRef, Task … (no dependencies)
+internal/domain/          Note, Link, NoteRef, FileRef, Task … (no dependencies)
 internal/parser/          Markdown → domain.Note (goldmark AST + frontmatter)
 internal/vault/           File layout: finding the root, scanning, creating notes/journal, reading and ticking tasks
 internal/app/             Use cases: Sync, Watch, Resolve, notes, daily note, reminders and todo; defines the Store port

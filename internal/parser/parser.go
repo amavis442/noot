@@ -204,9 +204,9 @@ func (w *walker) walk(doc ast.Node) error {
 		case *ast.RawHTML:
 			return ast.WalkSkipChildren, nil
 		case *ast.Link:
-			if target, ok := w.mdTarget(string(t.Destination)); ok {
-				w.pending = append(w.pending, domain.Link{Target: target, Kind: domain.LinkMarkdown})
-			}
+			w.addMarkdown(t.Destination)
+		case *ast.Image:
+			w.addMarkdown(t.Destination)
 		case *ast.Text:
 			w.buf.Write(t.Segment.Value(w.src))
 			w.show.Write(t.Segment.Value(w.src))
@@ -254,7 +254,14 @@ func wikiTarget(raw string) string {
 	return strings.TrimSuffix(raw, ".md")
 }
 
-// mdTarget converts a relative .md link into a vault-relative path.
+func (w *walker) addMarkdown(dest []byte) {
+	if target, ok := w.mdTarget(string(dest)); ok {
+		w.pending = append(w.pending, domain.Link{Target: target, Kind: domain.LinkMarkdown})
+	}
+}
+
+// mdTarget converts a relative link to a note or a file into a vault-relative
+// path. Links without a file extension (folders, "LICENSE") are left alone.
 func (w *walker) mdTarget(dest string) (string, bool) {
 	if dest == "" || strings.Contains(dest, "://") || strings.HasPrefix(dest, "mailto:") || strings.HasPrefix(dest, "#") {
 		return "", false
@@ -263,7 +270,7 @@ func (w *walker) mdTarget(dest string) (string, bool) {
 		dest = dest[:i]
 	}
 	dest = strings.ReplaceAll(dest, "%20", " ")
-	if !strings.EqualFold(path.Ext(dest), ".md") {
+	if path.Ext(dest) == "" || strings.HasSuffix(dest, "/") {
 		return "", false
 	}
 	var p string

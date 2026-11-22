@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -159,5 +160,124 @@ func TestRenameDryRunAndErrors(t *testing.T) {
 		if _, err := svc.Rename(ctx, tc.note, tc.opt); err == nil {
 			t.Errorf("%s: expected an error", name)
 		}
+	}
+}
+
+func TestRenameFileRewritesLinks(t *testing.T) {
+	ctx := context.Background()
+	svc, root := setup(t)
+	write(t, root, "notes/a.md", "# A\n\nBy name [[photo.png]], by path ![[assets/photo.png|label]], "+
+		"[pic](../assets/photo.png#x) and [[other.png]].\n\n`[[photo.png]]` in code stays.\n")
+	write(t, root, "b.md", "# B\n\n[[Photo.PNG]] and [[assets/photo.png]].\n")
+	write(t, root, "assets/photo.png", "png")
+	write(t, root, "other.png", "png")
+	if _, err := svc.Sync(ctx, false); err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := svc.Rename(ctx, "photo.png", app.RenameOptions{To: "img/pic.png"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.From != "assets/photo.png" || res.To != "img/pic.png" || res.Links != 5 || len(res.Broken) != 0 {
+		t.Errorf("result = %+v", res)
+	}
+	if strings.Join(res.Changed, ",") != "b.md,notes/a.md" {
+		t.Errorf("changed = %v", res.Changed)
+	}
+	if got := read(t, root, "notes/a.md"); !strings.Contains(got,
+		"By name [[pic.png]], by path ![[img/pic.png|label]], [pic](../img/pic.png#x) and [[other.png]].") ||
+		!strings.Contains(got, "`[[photo.png]]` in code stays.") {
+		t.Errorf("a:\n%s", got)
+	}
+	if got := read(t, root, "b.md"); !strings.Contains(got, "[[pic.png]] and [[img/pic.png]].") {
+		t.Errorf("b:\n%s", got)
+	}
+	if _, err := os.Stat(filepath.Join(root, "assets", "photo.png")); !os.IsNotExist(err) {
+		t.Errorf("old file still there: %v", err)
+	}
+	if got := read(t, root, "img/pic.png"); got != "png" {
+		t.Errorf("moved file = %q", got)
+	}
+	if bls, _ := svc.Store.FileBacklinks(ctx, "img/pic.png"); len(bls) != 2 {
+		t.Errorf("backlinks after rename = %+v", bls)
+	}
+}
+
+func TestRenameFileKeepsLinksUnambiguous(t *testing.T) {
+	ctx := context.Background()
+	svc, root := setup(t)
+	write(t, root, "a.md", "# A\n\n[[photo.png]] and [[pic.png]].\n")
+	write(t, root, "photo.png", "p")
+	write(t, root, "pic.png", "q")
+	if _, err := svc.Sync(ctx, false); err != nil {
+		t.Fatal(err)
+	}
+	// "pic.png" already names another file: the link to the moved file must
+	// use its path, and the link that meant the other file stays as it is.
+	dry, err := svc.Rename(ctx, "photo.png", app.RenameOptions{To: "sub/pic.png", DryRun: true})
+	if err != nil || !dry.DryRun || dry.Links != 1 {
+		t.Fatalf("dry run = %+v, %v", dry, err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "photo.png")); err != nil {
+		t.Fatalf("dry run moved the file: %v", err)
+	}
+	if _, err := svc.Rename(ctx, "photo.png", app.RenameOptions{To: "sub/pic.png"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, root, "a.md"); !strings.Contains(got, "[[sub/pic.png]] and [[pic.png]].") {
+		t.Errorf("a:\n%s", got)
+	}
+	if broken, _ := svc.Store.Broken(ctx); len(broken) != 0 {
+		t.Errorf("broken = %+v", broken)
+	}
+	if bls, _ := svc.Store.FileBacklinks(ctx, "pic.png"); len(bls) != 1 {
+		t.Errorf("the other pic.png lost its link: %+v", bls)
+	}
+}
+
+func TestRenameFileRefusesToShadowAnotherFile(t *testing.T) {
+	ctx := context.Background()
+	svc, root := setup(t)
+	write(t, root, "a.md", "# A\n\n[[pic.png]]\n")
+	write(t, root, "deep/er/pic.png", "q")
+	write(t, root, "photo.png", "p")
+	if _, err := svc.Sync(ctx, false); err != nil {
+		t.Fatal(err)
+	}
+	// By file name [[pic.png]] means the shortest path: the moved file would
+	// take over that link from deep/er/pic.png.
+	_, err := svc.Rename(ctx, "photo.png", app.RenameOptions{To: "pic.png"})
+	if err == nil || !strings.Contains(err.Error(), "deep/er/pic.png") {
+		t.Errorf("err = %v", err)
+	}
+}
+
+func TestRenameFileErrors(t *testing.T) {
+	ctx := context.Background()
+	svc, root := setup(t)
+	write(t, root, "a.md", "# A\n\n[[photo.png]]\n")
+	write(t, root, "photo.png", "p")
+	write(t, root, "taken.png", "t")
+	if _, err := svc.Sync(ctx, false); err != nil {
+		t.Fatal(err)
+	}
+	for name, opt := range map[string]app.RenameOptions{
+		"title":     {Title: "x"},
+		"nothing":   {},
+		"exists":    {To: "taken.png"},
+		"to a note": {To: "photo.md"},
+		"hidden":    {To: ".photo.png"},
+		"outside":   {To: "../photo.png"},
+	} {
+		if _, err := svc.Rename(ctx, "photo.png", opt); err == nil {
+			t.Errorf("%s: expected an error", name)
+		}
+	}
+	if _, err := svc.Rename(ctx, "nope.png", app.RenameOptions{To: "x.png"}); !errors.Is(err, app.ErrNotFound) {
+		t.Errorf("missing: %v", err)
+	}
+	if got := read(t, root, "a.md"); !strings.Contains(got, "[[photo.png]]") {
+		t.Errorf("a changed:\n%s", got)
 	}
 }
