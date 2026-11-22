@@ -2,9 +2,11 @@ package cli
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 	"text/tabwriter"
+	"time"
 
 	"github.com/amavis442/noot/internal/app"
 	"github.com/amavis442/noot/internal/domain"
@@ -125,4 +127,54 @@ func TestRemindersKeepTheirTabwriterLayout(t *testing.T) {
 	if po.String() != want.String() {
 		t.Fatalf("layout differs.\nwant:\n%q\ngot:\n%q", want.String(), po.String())
 	}
+}
+
+func todoTasks() []domain.Task {
+	return []domain.Task{
+		{Source: domain.SourceReminders, File: "reminders.md", Line: 7, N: 1, Text: "Tandarts bellen", Due: "2026-10-29"},
+		{Source: domain.SourceReminders, File: "reminders.md", Line: 8, N: 2, Text: "Café reserveren", Planned: "2026-10-31"},
+		{Source: domain.SourceWeek, File: "agenda/2026-W44.md", Line: 12, Text: "Post wegbrengen", Planned: "2026-11-02", Section: "Planned"},
+		{Source: domain.SourceBacklog, File: "agenda/agenda.md", Line: 9, Text: "**C# API**", Section: "Planned"},
+		{Source: domain.SourceBacklog, File: "agenda/agenda.md", Line: 20, Text: "**Rename repo**", Done: true, DoneOn: "2026-10-20", Section: "Done"},
+	}
+}
+
+func TestTodoStyled(t *testing.T) {
+	now := time.Date(2026, 10, 31, 9, 0, 0, 0, time.Local) // a Saturday
+	plain, styled, po, so := envs()
+	if err := printTodo(plain, todoTasks(), now); err != nil {
+		t.Fatal(err)
+	}
+	if err := printTodo(styled, todoTasks(), now); err != nil {
+		t.Fatal(err)
+	}
+	sameText(t, po.String(), so.String())
+}
+
+func TestTodoPlainLayout(t *testing.T) {
+	now := time.Date(2026, 10, 31, 9, 0, 0, 0, time.Local) // a Saturday; the week ends tomorrow
+	plain, _, po, _ := envs()
+	if err := printTodo(plain, todoTasks(), now); err != nil {
+		t.Fatal(err)
+	}
+	// Task and date columns are as wide as the widest entry, over all groups.
+	row := func(text, meta, src string) string { return fmt.Sprintf("  %-19s  %-24s  %s\n", text, meta, src) }
+	want := "Overdue (1)\n" + row("[ ] Tandarts bellen", "due 2026-10-29 (overdue)", "reminders.md:7") +
+		"\nToday (1)\n" + row("[ ] Café reserveren", "planned 2026-10-31", "reminders.md:8") +
+		"\nLater (1)\n" + row("[ ] Post wegbrengen", "planned 2026-11-02", "agenda/2026-W44.md:12") +
+		"\nBacklog (1)\n" + row("[ ] **C# API**", "", "agenda/agenda.md:9") +
+		"\nDone (1)\n" + row("[x] **Rename repo**", "done 2026-10-20", "agenda/agenda.md:20")
+	if got := po.String(); got != want {
+		t.Errorf("layout differs.\nwant:\n%s\ngot:\n%s", want, got)
+	}
+}
+
+func TestTodoEmpty(t *testing.T) {
+	plain, styled, po, so := envs()
+	printTodo(plain, nil, time.Now())
+	printTodo(styled, nil, time.Now())
+	if po.String() != "nothing to do\n" {
+		t.Fatalf("empty = %q", po.String())
+	}
+	sameText(t, po.String(), so.String())
 }

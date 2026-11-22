@@ -1074,3 +1074,68 @@ func TestPipedOutputHasNoColours(t *testing.T) {
 	contains(t, "plain search", e.ok("-V", "v", "search", "rogge"), "zettels/brood.md  —  Brood", "«rogge»")
 	contains(t, "plain reminder", e.ok("-V", "v", "reminder"), "[ ] Tandarts bellen  due 2020-01-01 (overdue)")
 }
+
+func TestTodo(t *testing.T) {
+	e := newEnv(t)
+	e.ok("init", e.path("me"), "--name", "me")
+
+	contains(t, "empty", e.ok("todo"), "nothing to do")
+
+	today := time.Now().Format("2006-01-02")
+	e.ok("reminder", "Call the dentist", "--due", "2020-01-01")
+	e.ok("reminder", "Water the plants", "--due", today)
+	e.ok("reminder", "Renew passport", "--due", "2999-01-01")
+	e.ok("reminder", "Buy milk")
+	e.ok("reminder", "plan", "4", "today") // also lands in the week, as a ([[reminders]]) line
+	e.write("me/agenda/agenda.md", "# Agenda\n\n## Planned\n\n- [ ] **Learn Rust** (someday)\n  more words\n\n## Done\n\n- [x] **Old idea** · done 2026-11-22\n")
+	// A hand-written task under today in this week's agenda.
+	now := time.Now()
+	y, w := now.ISOWeek()
+	week := fmt.Sprintf("me/agenda/%d-W%02d.md", y, w)
+	got := e.read(week)
+	heading := "## " + now.Format("Monday 2 January") + "\n\n### Planned\n"
+	e.write(week, strings.Replace(got, heading, heading+"- [ ] Paint the fence\n- A plain bullet\n", 1))
+
+	list := e.ok("todo")
+	contains(t, "todo", list, "Overdue (1)", "[ ] Call the dentist", "due 2020-01-01 (overdue)", "reminders.md:9",
+		"Today (3)", "[ ] Water the plants", "[ ] Buy milk", "Later (1)", "[ ] Renew passport",
+		"Backlog (1)", "[ ] **Learn Rust** (someday)", "agenda/agenda.md:5",
+		"[ ] Paint the fence", ".md:")
+	lacks(t, "todo", list, "Old idea", "A plain bullet", "more words")
+	if n := strings.Count(list, "Buy milk"); n != 1 {
+		t.Errorf("a planned reminder is listed once, got %d times:\n%s", n, list)
+	}
+	if strings.Index(list, "Overdue") > strings.Index(list, "Today") || strings.Index(list, "Today") > strings.Index(list, "Backlog") {
+		t.Errorf("groups are out of order:\n%s", list)
+	}
+
+	contains(t, "--today", e.ok("todo", "--today"), "Overdue (1)", "Water the plants")
+	lacks(t, "--today", e.ok("todo", "--today"), "Backlog", "Renew passport", "Learn Rust")
+	week2 := e.ok("todo", "--week")
+	contains(t, "--week", week2, "Overdue", "Today")
+	lacks(t, "--week", week2, "Backlog", "Learn Rust")
+	contains(t, "--all", e.ok("todo", "--all"), "Done (1)", "[x] **Old idea**", "done 2026-11-22")
+	if r := e.run("todo", "--today", "--week"); r.code == 0 {
+		t.Errorf("--today and --week together should fail:\n%s", r)
+	}
+
+	var tasks []struct {
+		Source string `json:"source"`
+		File   string `json:"file"`
+		Line   int    `json:"line"`
+		Text   string `json:"text"`
+		Group  string `json:"group"`
+	}
+	if err := json.Unmarshal([]byte(e.ok("todo", "--json")), &tasks); err != nil || len(tasks) < 5 {
+		t.Fatalf("todo --json: %v\n%v", err, tasks)
+	}
+	if tasks[0].Source != "reminders" || tasks[0].Group != "overdue" || tasks[0].Text != "Call the dentist" || tasks[0].Line != 9 {
+		t.Errorf("first task = %+v", tasks[0])
+	}
+	var empty []any
+	e2 := newEnv(t)
+	e2.ok("init", e2.path("v"), "--name", "v")
+	if err := json.Unmarshal([]byte(e2.ok("todo", "--json")), &empty); err != nil || empty == nil {
+		t.Errorf("an empty todo --json is [], got %v (%v)", empty, err)
+	}
+}
