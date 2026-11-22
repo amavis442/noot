@@ -109,15 +109,16 @@ Elk leescommando werkt de index eerst incrementeel bij (op basis van mtime en gr
 | `reminder [tekst] [--due dag] [--all]` (`rem`) | Met tekst: reminder toevoegen aan `reminders.md`. Zonder tekst: de open reminders, vroegste datum eerst (`--all` toont ook de afgeronde) |
 | `reminder done <n>...` | Reminders afvinken; is de reminder ingepland, dan wordt hij ook in de agenda afgevinkt |
 | `reminder plan <n> <dag>` | Reminder onder Planned van die dag in de weekagenda zetten (de agenda wordt zo nodig aangemaakt) |
+| `todo [--today\|--week\|--all]` | Alle taken in één lijst: reminders, de backlog (`agenda/agenda.md`) en de weekagenda's, gegroepeerd op achterstallig, vandaag, deze week, later, backlog en klaar (zie [Todo](#todo)) |
 | `open <note> [--print]` | Notitie openen via id, pad, bestandsnaam, titel of alias |
 | `watch` | Index live bijhouden (Ctrl+C om te stoppen) |
 | `serve [--addr 127.0.0.1:4242]` | Web-UI om te zoeken, notities te maken en te bewerken (ook de dagnotitie en de weekagenda) en reminders te beheren, plus een JSON-API (zie [Web-UI](#web-ui)). Houdt de index live bij zoals `watch` |
-| `tui` | Interactieve terminal-UI met zoeken, dagnotitie, weekagenda en reminders (zie [Terminal-UI](#terminal-ui)) |
+| `tui` | Interactieve terminal-UI met zoeken, dagnotitie, weekagenda, reminders en todo (zie [Terminal-UI](#terminal-ui)) |
 | `push [-m melding] [--no-pull]` | Alles committen en pushen: `git add -A`, commit, `pull --rebase`, `push` |
 | `pull` | Wijzigingen van elders binnenhalen (`pull --rebase --autostash`) en de index bijwerken |
 | `status` | Laten zien wat de volgende `push` meeneemt: gewijzigde bestanden (A/M/D) en commits die nog niet gepusht zijn. Kijkt alleen, zonder netwerk |
 
-In een terminal krijgen `search`, `reminder` en `status` kleur, in dezelfde stijl als `noot tui`: paden en treffers in de accentkleur, te late reminders in het rood, `A`/`M`/`D` in groen/geel/rood. De tekst zelf blijft precies hetzelfde. In een pipe of script, met `--json` of met `NO_COLOR` gezet is er geen kleur. In Git Bash/MSYS2 (mintty) ziet noot geen terminal en blijft de uitvoer ook zonder kleur.
+In een terminal krijgen `search`, `reminder`, `todo` en `status` kleur, in dezelfde stijl als `noot tui`: paden en treffers in de accentkleur, te late reminders in het rood, `A`/`M`/`D` in groen/geel/rood. De tekst zelf blijft precies hetzelfde. In een pipe of script, met `--json` of met `NO_COLOR` gezet is er geen kleur. In Git Bash/MSYS2 (mintty) ziet noot geen terminal en blijft de uitvoer ook zonder kleur.
 
 Overal kun je `--json` toevoegen voor scripts, fzf of een AI-agent. Bijvoorbeeld:
 
@@ -127,6 +128,30 @@ noot search --json repository | jq -r '.[].path' | fzf --preview 'bat --color=al
 
 `<note>` wordt in deze volgorde opgezocht: **id → pad → bestandsnaam → titel → alias**, zonder onderscheid tussen hoofd- en kleine letters. Diezelfde volgorde wordt gebruikt om `[[wikilinks]]` op te lossen.
 
+## Todo
+
+`noot todo` zet alle taken van je vault in één lijst. Het leest drie bronnen en schrijft nergens een eigen administratie weg; er is ook geen index voor nodig, de bestanden worden bij elke aanroep gelezen:
+
+| Bron | Welke regels |
+|---|---|
+| `reminders.md` | alle reminders |
+| `agenda/agenda.md` | de backlog zonder dag: `- [ ]`/`- [x]`-regels onder `## Planned`, `## Doing` en `## Done`. Een item mag `· due JJJJ-MM-DD` of `· planned JJJJ-MM-DD` dragen, net als een reminder; zonder datum staat het in de backlog. Regels eronder die ingesprongen zijn horen bij het item |
+| `agenda/JJJJ-Www.md` | alleen regels met een checkbox onder `### Planned` en `### Doing`. Platte opsommingen zoals `- Vakantie 16-27` tellen niet mee. De dag waaronder het staat geldt als geplande dag |
+
+Een reminder die je met `noot reminder plan` in de week hebt gezet, staat in beide bestanden. Dan telt alleen de reminder; de regel met `([[reminders]])` in de week wordt overgeslagen.
+
+Een taak komt in de groep van zijn vroegste datum (`due` of `planned`): **Overdue** als die voor vandaag ligt, **Today**, **This week** (tot en met zondag), **Later**, en zonder datum **Backlog**. Afgeronde taken staan onder **Done**.
+
+```bash
+noot todo             # alle open taken
+noot todo --today     # achterstallig en vandaag
+noot todo --week      # ook de rest van deze week
+noot todo --all       # ook de afgeronde
+noot todo --json      # voor scripts, met per taak bron, bestand, regel en groep
+```
+
+Elke regel eindigt met bestand en regelnummer. Afvinken doe je in de [todo-tab](#terminal-ui) van `noot tui`, of voor reminders met `noot reminder done <n>`.
+
 ## Terminal-UI
 
 ```bash
@@ -134,7 +159,7 @@ noot tui                          # de vault die je ook met -V, -A of de huidige
 noot -A tui
 ```
 
-`noot tui` opent de vault schermvullend in de terminal (PowerShell, Windows Terminal en Linux-terminals), met vier tabs. Wisselen doe je met `1`-`4`; stoppen met `q` of `esc`. `?` toont alle toetsen van waar je bent.
+`noot tui` opent de vault schermvullend in de terminal (PowerShell, Windows Terminal en Linux-terminals), met vijf tabs. Wisselen doe je met `1`-`5`; stoppen met `q` of `esc`. `?` toont alle toetsen van waar je bent.
 
 De toetsen volgen de standaard van [superfile](https://superfile.dev/list/hotkey-list) (`spf`):
 
@@ -148,17 +173,18 @@ De toetsen volgen de standaard van [superfile](https://superfile.dev/list/hotkey
 | `e` | Bewerken in je editor |
 | `E` | Alles bewerken: in Agenda de hele week |
 | `ctrl+n` | Nieuw (reminder) |
-| `.` | Afgeronde reminders tonen/verbergen |
+| `.` | Afgeronde reminders en taken tonen/verbergen (in Todo ook `a`) |
 | `enter` / `esc` of `ctrl+c` | Tijdens het typen: bevestigen / annuleren |
 
-Daarnaast, waar superfile niets voor heeft: `J`/`K` (`shift+↓`/`↑`) om de preview te scrollen, `[` en `]` voor vorige/volgende dag of week, `t` voor vandaag, `x` om af te vinken en `p` om in te plannen.
+Daarnaast, waar superfile niets voor heeft: `J`/`K` (`shift+↓`/`↑`) om de preview te scrollen, `[` en `]` voor vorige/volgende dag of week, `t` voor vandaag, `x` om af te vinken (in Todo ook de spatie) en `p` om in te plannen.
 
 | Tab | Wat |
 |---|---|
-| **1 Zoeken** | Druk `/` om te zoeken; zoals in superfile heeft de zoekbalk bij het opstarten nog geen focus, zodat `1`-`4` meteen van tab wisselen. Een zoekbalk met twee panelen eronder: de resultaten, die bijwerken terwijl je typt, en de gekozen notitie opgemaakt. `#tag` in de zoekopdracht filtert op tag. Na het typen brengt `tab`, `enter` of `esc` je naar de resultaten, die de pijltjes houden; de preview krijgt nooit de focus, net als in superfile. Het paneel met de focus heeft een gekleurde rand |
+| **1 Zoeken** | Druk `/` om te zoeken; zoals in superfile heeft de zoekbalk bij het opstarten nog geen focus, zodat `1`-`5` meteen van tab wisselen. Een zoekbalk met twee panelen eronder: de resultaten, die bijwerken terwijl je typt, en de gekozen notitie opgemaakt. `#tag` in de zoekopdracht filtert op tag. Na het typen brengt `tab`, `enter` of `esc` je naar de resultaten, die de pijltjes houden; de preview krijgt nooit de focus, net als in superfile. Het paneel met de focus heeft een gekleurde rand |
 | **2 Vandaag** | De dagnotitie (wordt aangemaakt als hij ontbreekt) |
 | **3 Agenda** | De weekagenda per dag, geopend bij vandaag. Met `↑`/`↓` (`j`/`k`) kies je een dag; `e` opent alleen die dag in je editor en slaat hem daarna op in het weekbestand, net als *Bewerken* per dag in de web-UI. Is die dag intussen elders gewijzigd, dan wordt er niets overschreven en houdt de TUI je tekst vast: `e` opent jouw versie opnieuw. `E` bewerkt de hele week |
 | **4 Herinneringen** | De open reminders, te laat in het rood. Bij `ctrl+n` volgt na de tekst een uiterste datum (leeg is geen), bij `p` de dag (leeg is vandaag) |
+| **5 Todo** | Alle taken uit reminders, backlog en weekagenda's (zie [Todo](#todo)), gegroepeerd op Achterstallig, Vandaag, Deze week, Later, Backlog en Klaar. `spatie` of `x` vinkt af in het bronbestand; is de regel intussen veranderd, dan gebeurt er niets en laadt de lijst opnieuw. Een afgevinkt backlog-item verhuist naar `## Done`; een reminder blijft in `reminders.md` staan. `enter` of `e` opent het bronbestand, `p` plant een reminder in de weekagenda (alleen reminders; de andere taken staan al in de agenda), `a` toont ook de afgeronde |
 
 Met `e` open je wat je ziet in `$VISUAL` of `$EDITOR` (zonder die variabelen Notepad op Windows en `vi` op Linux), net als `noot open`. Na het sluiten van de editor komt de UI terug en wordt de index bijgewerkt. Een dag schrijf je zoals op de commandoregel: `2026-11-06`, `vandaag`, `morgen`, `+3` of `vrijdag`. Met `NO_COLOR` gezet verschijnt alles zonder kleur.
 
@@ -266,8 +292,8 @@ of een gewone link: [tekst](../projects/benstartpagina.md). #refactoring #go/pat
 cmd/noot/                 main
 internal/domain/          Note, Link, NoteRef … (geen dependencies)
 internal/parser/          Markdown → domain.Note (goldmark AST + frontmatter)
-internal/vault/           Bestandslayout: root vinden, scannen, notities/journal aanmaken
-internal/app/             Use cases: Sync, Watch, Resolve, notities, dagnotitie en reminders; definieert de Store-port
+internal/vault/           Bestandslayout: root vinden, scannen, notities/journal aanmaken, taken lezen en afvinken
+internal/app/             Use cases: Sync, Watch, Resolve, notities, dagnotitie, reminders en todo; definieert de Store-port
 internal/storage/sqlite/  Store-implementatie (SQLite + FTS5)
 internal/cli/             cobra-commando's en output
 internal/httpapi/         HTTP-adapter voor noot serve: JSON-API over de use cases + statische bestanden
